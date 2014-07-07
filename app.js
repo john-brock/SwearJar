@@ -261,8 +261,15 @@ function setWordCost(user, wordCost, callback) {
     var cost = parseFloat(wordCost);
     if (isNaN(cost)) { return next(new Error('WordCost must be a number.')); }
     user.wordCost = cost;
-    callback(user);
   }
+  callback(user);
+}
+
+function setUserName(user, name, callback) {
+  if (name != null) {
+    user.name = name;
+  }
+  callback(user);
 }
 
 router.route('/users/:user_id')
@@ -287,15 +294,16 @@ router.route('/users')
     var user;
     if (users.length == 0) {
       user = new User({
-          _id: userId,
-          name: userName
+          _id: userId
       });
     } else {
       user = users[0];
     }
-    setWordCost(user, wordCost, function(user) {
-      saveUser(user, function() {
-        res.send(200);
+    setUserName(user, userName, function(user) {
+      setWordCost(user, wordCost, function(user) {
+        saveUser(user, function() {
+          res.send(200);
+        });
       });
     });
   });
@@ -341,10 +349,14 @@ router.route('/words')
   })
 })
 .post(function(req, res, next) {
+  var wordText = req.param('word');
+  var category = req.param('category');
   var word = new Word({
-    word: req.param('word'),
-    category : req.param('category')
+    word: wordText,
   });
+  if (null != category) {
+    word.category = category;
+  }
   word.save(function(err, word) {
     if (err) { return next(new Error('Error saving new word. ' + err)); }
     res.send(200);
