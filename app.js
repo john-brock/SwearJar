@@ -256,6 +256,15 @@ function saveUser(user, callback) {
   });
 }
 
+function setWordCost(user, wordCost, callback) {
+  if (wordCost != null) {
+    var cost = parseFloat(wordCost);
+    if (isNaN(cost)) { return next(new Error('WordCost must be a number.')); }
+    user.wordCost = cost;
+    callback(user);
+  }
+}
+
 router.route('/users/:user_id')
 .get(function(req, res, next) {
   res.json(req.user);
@@ -269,18 +278,26 @@ router.route('/users')
   });
 })
 .post(function(req, res, next) {
-  var user = new User({
-    _id: req.param('id'),
-    name: req.param('name')
-  });
-  if (req.param('wordCost') != null) {
-    var cost = parseFloat(req.param('wordCost'));
-    if (isNaN(cost)) { return next(new Error('WordCost must be a number.')); }
-    user.wordCost = cost;
-  }
-  user.save(function(err, user) {
-    if (err) { return next(new Error('Error creating new user. ' + err)); }
-    res.send(200);
+  var userId = req.param('id');
+  var userName = req.param('name');
+  var wordCost = req.param('wordCost');
+
+  User.find({_id: userId}, function(err, users) {
+    if (err) { return next(new Error('Error find user with given id')); }
+    var user;
+    if (users.length == 0) {
+      user = new User({
+          _id: userId,
+          name: userName
+      });
+    } else {
+      user = users[0];
+    }
+    setWordCost(user, wordCost, function(user) {
+      saveUser(user, function() {
+        res.send(200);
+      });
+    });
   });
 })
 
