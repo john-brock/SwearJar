@@ -1,0 +1,52 @@
+extends layout
+
+block content
+	div.container
+		h1 Report
+		div#success(class='alert alert-success alert-dismissible', role='alert', hidden=true) 
+			button(type='button', class='close', data-dismiss='alert')
+				span(aria-hidden='true')
+					| &times;
+				span(class='sr-only')
+					| Close
+			strong
+				| Success!
+		div#error(class='alert alert-danger alert-dismissible', role='alert', hidden=true) 
+			button(type='button', class='close', data-dismiss='alert')
+				span(aria-hidden='true')
+					| &times;
+				span(class='sr-only')
+					| Close
+			strong
+				| Oops... Could not make update!
+		form#form(role='form')
+			div(class='form-group')
+				select#userInput(type='text', class='form-control input-lg')
+					option(selected disabled) -- Who --
+					option Ahbinav
+					option Alex
+					option Dana
+					option Don
+					option Georges
+					option Igor
+					option John
+					option Phil
+					option Ramya
+					option Steve
+					option Theresa
+			div(class='form-group')
+				select#wordInput(type='text', class='form-control input-lg')
+					option(selected disabled) -- Word --
+					option Car
+					option F*ck
+					option Insurance
+					option Mongo
+					option Node
+					option STI
+					option Subaru
+					option Webscale
+					option WRX
+			div(class='form-group')
+				label(for='countInput') Number of Infractions
+				input#countInput(type='number', class='form-control input-lg' value='1')
+			a#submit(type='submit', class='btn btn-success btn-lg btn-block') Save
