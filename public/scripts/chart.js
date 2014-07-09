@@ -29,7 +29,7 @@ function retrieveUserDataAndCreateTable() {
 function createUserTable(userData) {
 	var data = new google.visualization.DataTable();
 	data.addColumn('string', 'Name');
-	data.addColumn('number', 'Infractions');
+	data.addColumn('number', 'Count');
 	data.addColumn('number', '$ Owed');
 	data.addColumn('number', '$ Paid');
 
