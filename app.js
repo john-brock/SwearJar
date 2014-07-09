@@ -215,8 +215,9 @@ router.route('/users/:user_id/words')
 })
 .post(function(req, res, next) {
   var user = req.user;
+  var allowDelete = req.param('delete') == 'true';
   var word = {word: req.param('word'), count: parseInt(req.param('count'))};
-  if (isNaN(word.count) || word.count <= 0) {
+  if (isNaN(word.count) || (word.count <= 0 && !allowDelete)) {
     return next(new Error('Error: count must be a positive number.'));
   } else {
     var wordFound = false;
