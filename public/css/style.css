@@ -1,3 +1,14 @@
 td.google-visualization-table-th.gradient {
 	width: 25%;
 }
+
+@media (max-width: 768px) {
+	button.navbar-toggle {
+		float: none;
+		margin-right: 0px;
+		margin-left: 10px;
+	}
+	a.navbar-brand {
+		float: none;
+	}
+}
