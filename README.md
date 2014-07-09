@@ -8,9 +8,9 @@ Swear Jar app to track use of "forbidden" words
 - List users
   <br/>`GET /users`
 - Add new user
-  <br/>`POST /users` with data `{id: userId, name: userName, wordCost: cost (optional) }`
+  <br/>`POST /users` with data `{ id: userId, name: userName, wordCost: cost (optional) }`
 - Update user information
-  <br/>`POST /users` with data `{id: userId, name: userName (optional), wordCost: cost (optional) }`
+  <br/>`POST /users` with data `{ id: userId, name: userName (optional), wordCost: cost (optional) }`
 - Get summary overview of all user data
   <br/>`GET /users/summary`
 - Retrive specific user
@@ -19,6 +19,8 @@ Swear Jar app to track use of "forbidden" words
   <br/>`GET /users/:userId/owes`
 - Retrieve the amount a specific user has paid
   <br/>`GET /users/:userId/paid`
+- Update the amount a specific user has paid
+  <br/>`POST /users/:userId/paid` with data `{ amount: amountPaid }`
 - Retireve the word infractions for a specific user
   <br/>`GET /users/:userId/words`
 - Retrieve the number of infractions for a specific user
@@ -28,7 +30,7 @@ Swear Jar app to track use of "forbidden" words
 - List words
   <br/>`GET /words`
 - Add new forbidden word
-  <br/>`POST /words` with data `{word: word, category: category (optional) }`
+  <br/>`POST /words` with data `{ word: word, category: category (optional) }`
 - Get summary of word infraction counts
   <br/>`GET /words/count`
 - Get information for specific word
