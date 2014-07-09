@@ -1,7 +1,21 @@
 SwearJar
 ========
 
-Swear Jar app to track use of "forbidden" words
+SwearJar is a NodeJS app that tracks the use of "forbidden" words and the associated costs for each user.
+
+**Install instructions**
+<br/>*Local* (assuming you have Node and MongoDB installed)<br/>
+1. Clone repo `git clone https://github.com/john-brock/SwearJar.git`<br/>
+2. Navigate to SwearJar directory `cd SwearJar`<br/>
+3. Install dependencies `npm install`<br/>
+3. Start MongoDB `mongod`<br/>
+4. Start SwearJar `foreman start` or `node app.js`<br/>
+
+<br/>*Heroku* (assuming you have Heroku CLI)<br/>
+1. Create new Heroku app from SwearJar directory `heroku create`<br/>
+2. Add a MongoDB add-on `heroku addons:add mongohq`<br/>
+3. Deploy to Heroku `git push heroku master`<br/>
+<br/>More info: https://devcenter.heroku.com/articles/getting-started-with-nodejs
 
 **API**
 <br/>*Users*
