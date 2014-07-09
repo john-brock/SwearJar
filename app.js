@@ -149,7 +149,9 @@ router.route('/users/summary')
 .get(function(req, res, next) {
   var count = 0;
   var userSummary = [];
-  // { [ {name:name, ....  }, {} ] }
+  var totalInfractions = 0;
+  var totalOwed = 0;
+  var totalPaid = 0;
   User.find({}, function(err, users) {
     if (err) { return next(new Error('Error finding users.')); }
     for (var i=0; i<users.length; i++) {
@@ -157,15 +159,17 @@ router.route('/users/summary')
       var dataObj = {};
       dataObj.name = user.name;
       dataObj.totalPaid = user.moneyPaid;
-      var totalInfractions;
-      var amountOwed;
+      totalPaid += user.moneyPaid;
       user.getTotalInfractions(function(infractions) {
         dataObj.totalInfractions = infractions;
+        totalInfractions += infractions;
         user.getTotalOwed(function(owed) {
           dataObj.totalOwed = owed;
+          totalOwed += owed;
           userSummary.push(dataObj);
           count++;
           if (count == users.length) {
+            userSummary.push({ 'name':'Total', 'totalInfractions':totalInfractions, 'totalOwed':totalOwed, 'totalPaid':totalPaid });
             res.json(userSummary);
           }
         })

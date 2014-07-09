@@ -33,19 +33,32 @@ function createUserTable(userData) {
 	data.addColumn('number', '$ Owed');
 	data.addColumn('number', '$ Paid');
 
+	var summaryData = new google.visualization.DataTable();
 	var rows = [];
+	count = 0;
 	for (var i=0; i<userData.length; i++) {
+		count++;
 		var row = [];
 		var user = userData[i];
-		row.push(user.name);
-		row.push(user.totalInfractions);
-		row.push(user.totalOwed);
-		row.push(user.totalPaid);
-		rows.push(row);
-		if (rows.length == userData.length) {
+		if (user.name === 'Total') {
+			summaryData.addColumn('string', user.name);
+			summaryData.addColumn('number', user.totalInfractions);
+			summaryData.addColumn('number', user.totalOwed);
+			summaryData.addColumn('number', user.totalPaid);
+		} else {
+			row.push(user.name);
+			row.push(user.totalInfractions);
+			row.push(user.totalOwed);
+			row.push(user.totalPaid);
+			rows.push(row);
+		}
+		if (count == userData.length) {
 			data.addRows(rows);
+			data.sort([{column:1, desc:true}]);
 			var table = new google.visualization.Table(document.getElementById('userTable'));
-			table.draw(data, {sortColumn:1, sortAscending:false});
+			table.draw(data, {sort:'disable'});
+			var summaryTable = new google.visualization.Table(document.getElementById('summaryTable'));
+			summaryTable.draw(summaryData, null);
 		}
 	}
 }
