@@ -220,9 +220,12 @@ router.route('/users/:user_id/words')
 .post(function(req, res, next) {
   var user = req.user;
   var allowDelete = req.param('delete') == 'true';
-  var word = {word: req.param('word'), count: parseInt(req.param('count'))};
+  var wordParam = req.param('word');
+  var word = {word: wordParam, count: parseInt(req.param('count'))};
   if (isNaN(word.count) || (word.count <= 0 && !allowDelete)) {
     return next(new Error('Error: count must be a positive number.'));
+  } else if (null == wordParam || wordParam.length == 0) {
+    return next(new Error('Error: word submitted was not valid.'));
   } else {
     var wordFound = false;
     var count = 0;
