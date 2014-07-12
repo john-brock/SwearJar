@@ -43,8 +43,8 @@ SwearJar is a NodeJS app that tracks the use of "forbidden" words and the associ
 *Forbidden Words*
 - List words
   <br/>`GET /words`
-- Add new forbidden word
-  <br/>`POST /words` with data `{ word: word, category: category (optional) }`
+- Add new or update forbidden word
+  <br/>`POST /words` with data `{ word: word, category: category (optional), active: active (optional) }`
 - Get summary of word infraction counts
   <br/>`GET /words/count`
 - Get information for specific word
