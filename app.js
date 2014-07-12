@@ -385,12 +385,12 @@ router.route('/words')
 app.get('/', function(req, res) {
   var userList;
   var words;
-  var users = User.find({}, function(err, users) {
+  var users = User.find( {$query: {}, $orderby : {name: 1} }, function(err, users) {
     if (err) {
       res.send(500);
     } else {
       userList = users;
-      Word.find({'isActiveOption': {$ne: false}}, function(err, words) {
+      Word.find( {$query: {'isActiveOption': {$ne: false}}, $orderby: { word: 1 } }, function(err, words) {
         if (err) {
           res.send(500);
         } else {
