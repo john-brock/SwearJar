@@ -62,6 +62,7 @@ userSchema.methods.getTotalOwed = function(callback) {
 var wordSchema = mongoose.Schema({
   word: {type: String, required: true},
   category: String,
+  isActiveOption: {type: Boolean, default: true}
 });
 
 wordSchema.methods.getTotalCount = function(callback) {
@@ -359,20 +360,45 @@ router.route('/words')
 .post(function(req, res, next) {
   var wordText = req.param('word');
   var category = req.param('category');
-  var word = new Word({
-    word: wordText,
-  });
-  if (null != category) {
-    word.category = category;
-  }
-  word.save(function(err, word) {
-    if (err) { return next(new Error('Error saving new word. ' + err)); }
-    res.send(200);
+  var isActiveOption = req.param('active');
+  Word.find({word: wordText}, function (err, words) {
+    if (err) {
+      return next(new Error('Error attempting to find existing word.'));
+    } else {
+      var word = words.length > 0 ? words[0] : new Word({
+        word: wordText,
+      });
+      if (null != category) {
+        word.category = category;
+      }
+      if (null != isActiveOption) {
+        word.isActiveOption = isActiveOption;
+      }
+      word.save(function(err, word) {
+        if (err) { return next(new Error('Error saving new word. ' + err)); }
+        res.send(200);
+      });
+    }
   });
 })
 
 app.get('/', function(req, res) {
-  res.render('index');
+  var userList;
+  var words;
+  var users = User.find({}, function(err, users) {
+    if (err) {
+      res.send(500);
+    } else {
+      userList = users;
+      Word.find({'isActiveOption': {$ne: false}}, function(err, words) {
+        if (err) {
+          res.send(500);
+        } else {
+          res.render('index', {'users': userList, 'words': words});
+        }
+      });
+    }
+  });
 });
 
 app.get('/charts', function(req, res) {
