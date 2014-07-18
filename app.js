@@ -9,7 +9,7 @@ var config = require('./config.json');
 
 var app = express();
 var router = express.Router();
-var port = Number(process.env.PORT || 5000);
+var port = Number(process.env.PORT || 5005);
 
 var mongoUri = process.env.MONGOLAB_URI || process.env.MONGOHQ_URL || 'mongodb://localhost/swearjar';
 
@@ -228,57 +228,78 @@ router.route('/users/:user_id/words')
   } else if (null == wordParam || wordParam.length == 0) {
     return next(new Error('Error: word submitted was not valid.'));
   } else {
-    var wordFound = false;
-    var count = 0;
-    var origCount = user.words.length;
-    for (var i=0; i<origCount; i++) {
-      if (user.words[i].word.toUpperCase() === word.word.toUpperCase()) {
-        user.words[i].count += word.count;
-        wordFound = true;
+    updateUserWords(user, word, null, function(err) {
+      if (err) {
+        return next(new Error(err));
       }
-      count++;
-      if (count == origCount) {
-        if (!wordFound) {
-          user.words.push(word);
-        }
-        saveUser(user, function() {
-          res.send(200);
-        });
-      }
-    }
-    if (origCount == 0) {
-      user.words.push(word);
-      saveUser(user, function() {
-        res.send(200);
-      });
-    }
+      res.send(200);
+    });
   }
 })
 
-function saveUser(user, callback) {
+function updateUserWords(user, word, userInfo, callback) {
+  var wordFound = false;
+  var count = 0;
+  var origCount = user.words.length;
+  for (var i=0; i<origCount; i++) {
+    if (user.words[i].word.toUpperCase() === word.word.toUpperCase()) {
+      user.words[i].count += word.count;
+      wordFound = true;
+    }
+    count++;
+    if (count == origCount) {
+      if (!wordFound) {
+        user.words.push(word);
+      }
+      saveUser(user, word, null, function(err) {
+        if (err) {
+          callback(err);
+        }
+        callback(null);
+      });
+    }
+  }
+  if (origCount == 0) {
+    user.words.push(word);
+    saveUser(user, word, null, function(err) {
+      if (err) {
+        callback(err);
+      }
+      callback(null);
+    });
+  }
+}
+
+function saveUser(user, word, userInfo, callback) {
+  var origId = user._id;
+  console.log(origId);
   user.save(function(err, user) {
     if (err) {
-      return next(new Error('Error updating user. ' + err));
+      if (err instanceof mongoose.Error.VersionError) {
+        // refetch user and true to update
+        console.log('Refetch required!');
+        User.find({_id: origId}, function(err, users) {
+          if (err) {
+            callback(err);
+          } else if (users.length > 0) {
+            if (word) {
+              updateUserWords(users[0], word, null, callback);
+            } else if (userInfo) {
+              updateUserInfo(users[0], null, userInfo, callback);
+            } else {
+              callback('Error: did not have correct information to update user.');
+            }
+          } else {
+            callback('Error: could not fetch user on retry during save.');
+          }
+        });
+      } else {
+        callback('Error updating user. ' + err);        
+      }
     } else {
-      callback();
+      callback(null);
     }
   });
-}
-
-function setWordCost(user, wordCost, callback) {
-  if (wordCost != null) {
-    var cost = parseFloat(wordCost);
-    if (isNaN(cost)) { return next(new Error('WordCost must be a number.')); }
-    user.wordCost = cost;
-  }
-  callback(user);
-}
-
-function setUserName(user, name, callback) {
-  if (name != null) {
-    user.name = name;
-  }
-  callback(user);
 }
 
 router.route('/users/:user_id')
@@ -295,9 +316,8 @@ router.route('/users')
 })
 .post(function(req, res, next) {
   var userId = req.param('id');
-  var userName = req.param('name');
-  var wordCost = req.param('wordCost');
-
+  var userInfo = {wordCost : req.param('wordCost'), userName : req.param('name')};
+  console.log(userInfo);
   User.find({_id: userId}, function(err, users) {
     if (err) { return next(new Error('Error find user with given id')); }
     var user;
@@ -308,15 +328,47 @@ router.route('/users')
     } else {
       user = users[0];
     }
-    setUserName(user, userName, function(user) {
-      setWordCost(user, wordCost, function(user) {
-        saveUser(user, function() {
-          res.send(200);
-        });
-      });
+    updateUserInfo(user, null, userInfo, function(err) {
+      if (err) {
+        return next(new Error(err));
+      }
+      res.send(200);
     });
   });
 })
+
+function updateUserInfo(user, word, userInfo, callback) {
+  console.log(JSON.stringify(userInfo));
+  setUserName(user, userInfo.userName, function(user) {
+    setWordCost(user, userInfo.wordCost, function(err, user) {
+      if (err) {
+        callback(err);
+      }
+      saveUser(user, null, userInfo, function(err) {
+        if (err) {
+          callback(err);
+        }
+        callback(null);
+      });
+    });
+  });
+}
+
+function setWordCost(user, wordCost, callback) {
+  if (wordCost != null) {
+    var cost = parseFloat(wordCost);
+    if (isNaN(cost)) { callback('WordCost must be a number.'); }
+    user.wordCost = cost;
+  }
+  callback(null, user);
+}
+
+function setUserName(user, name, callback) {
+  if (name != null) {
+    user.name = name;
+  }
+  callback(user);
+}
 
 router.route('/words/count')
 .get(function(req, res, next) {
@@ -382,7 +434,7 @@ router.route('/words')
   });
 })
 
-app.get('/', function(req, res) {
+function renderPage(pageToRender, req, res) {
   var userList;
   var words;
   var users = User.find( {$query: {}, $orderby : {name: 1} }, function(err, users) {
@@ -394,11 +446,19 @@ app.get('/', function(req, res) {
         if (err) {
           res.send(500);
         } else {
-          res.render('index', {'users': userList, 'words': words});
+          res.render(pageToRender, {'users': userList, 'words': words});
         }
       });
     }
   });
+}
+
+app.get('/', function(req, res) {
+  renderPage('indexOld', req, res);
+});
+
+app.get('/new', function(req, res) {
+  renderPage('index', req, res);
 });
 
 app.get('/charts', function(req, res) {
