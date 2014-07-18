@@ -12,3 +12,15 @@ td.google-visualization-table-th.gradient {
 		float: none;
 	}
 }
+
+.green {
+	color: green;
+}
+
+.green-background {
+	background-color: green;
+}
+
+.bold {
+	font-weight: bold;
+}

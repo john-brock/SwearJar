@@ -19,20 +19,30 @@ block content
 					| Close
 			strong
 				| Oops... Could not make update!
-		form#form(role='form')
-			div(class='form-group')
-				select#userInput(type='text', class='form-control input-lg')
-					option(selected disabled) -- Who --
-					each user in users
-						option
-							| #{user.name}
-			div(class='form-group')
-				select#wordInput(type='text', class='form-control input-lg')
-					option(selected disabled) -- Word --
-					each word in words
-						option
-							| #{word.word}
-			div(class='form-group')
-				label(for='countInput') Number of Infractions
-				input#countInput(type='number', class='form-control input-lg' value='1')
+		div.container-fluid
+			div.row
+				div(class='col-xs-6')
+					ul.list-group
+						each user in users
+							- var userName = user.name
+							- var buttonId = userName + '_user_btn'
+							button(id='#{buttonId}', class='col-xs-12 list-group-item user', data-user='#{userName}')
+								div.col-xs-4
+									- var checkId = userName + '_check'
+									span(id='#{checkId}', class='glyphicon glyphicon-unchecked')
+								span(class='col-xs-8') #{userName}
+				div(class='col-xs-6')
+					ul.list-group
+						each word in words
+							- var wordString = word.word;
+							- var wordNoSpace = wordString.replace(/\s+/g,'')
+							- var buttonId = wordNoSpace + '_word_btn'
+							button(id='#{buttonId}', class='col-xs-12 list-group-item word', data-word='#{wordNoSpace}', data-word-full='#{wordString}')
+								span(class='col-xs-8') #{wordString}
+								div.col-xs-4
+									- var badgeId = wordNoSpace + '_badge'
+									span(id='#{badgeId}', class='badge', value=0) 0
+		div.container
+			br
+		div.container-fluid
 			a#submit(type='submit', class='btn btn-success btn-lg btn-block') Save
