@@ -27,10 +27,9 @@ block content
 							- var userName = user.name
 							- var buttonId = userName + '_user_btn'
 							button(id='#{buttonId}', class='col-xs-12 list-group-item user', data-user='#{userName}')
-								div.col-xs-4
-									- var checkId = userName + '_check'
-									span(id='#{checkId}', class='glyphicon glyphicon-unchecked')
-								span(class='col-xs-8') #{userName}
+								- var checkId = userName + '_check'
+								span(id='#{checkId}', class='pull-left glyphicon glyphicon-unchecked')
+								span #{userName}
 				div(class='col-xs-6')
 					ul.list-group
 						each word in words
@@ -38,10 +37,9 @@ block content
 							- var wordNoSpace = wordString.replace(/\s+/g,'')
 							- var buttonId = wordNoSpace + '_word_btn'
 							button(id='#{buttonId}', class='col-xs-12 list-group-item word', data-word='#{wordNoSpace}', data-word-full='#{wordString}')
-								span(class='col-xs-8') #{wordString}
-								div.col-xs-4
-									- var badgeId = wordNoSpace + '_badge'
-									span(id='#{badgeId}', class='badge', value=0) 0
+								span #{wordString}
+								- var badgeId = wordNoSpace + '_badge'
+								span(id='#{badgeId}', class='badge pull-right', value=0) 0
 		div.container
 			br
 		div.container-fluid
