@@ -11,7 +11,7 @@ var app = express();
 var router = express.Router();
 var port = Number(process.env.PORT || 5005);
 
-var mongoUri = process.env.MONGOLAB_URI || process.env.MONGOHQ_URL || 'mongodb://localhost/swearjar';
+var mongoUri = process.env.MONGOLAB_URI || process.env.MONGOHQ_URL || process.env.MONGODB_URI || 'mongodb://localhost/swearjar';
 
 app.set('views', __dirname + '/views');
 app.set('view engine', 'jade');

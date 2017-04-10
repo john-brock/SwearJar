@@ -13,7 +13,7 @@ SwearJar is a NodeJS app that tracks the use of "forbidden" words and the associ
 
 <br/>*Heroku* (assuming you have Heroku CLI)<br/>
 1. Create new Heroku app from SwearJar directory `heroku create`<br/>
-2. Add a MongoDB add-on `heroku addons:add mongohq`<br/>
+2. Add a MongoDB add-on `heroku addons:create mongolab:sandbox`<br/>
 3. Deploy to Heroku `git push heroku master`<br/>
 <br/>More info: https://devcenter.heroku.com/articles/getting-started-with-nodejs
 
