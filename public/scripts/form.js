@@ -42,6 +42,9 @@ $(document).ready(function(){
 		badge.text(value);
 		adjustWordClasses($('#'+this.id), badge, value);
 	})
+
+	adjustDefaultSelectValue('#userInput');
+	adjustDefaultSelectValue('#wordInput');
 });
 
 function toggleIfNotHidden(element) {
@@ -118,8 +121,8 @@ function submitForm() {
 			error();
 		} else {
 			success();
-			$('#userInput').prop('selectedIndex', 0);
-			$('#wordInput').prop('selectedIndex', 0);
+			adjustDefaultSelectValue('#userInput');
+			adjustDefaultSelectValue('#wordInput');
 			$('#countInput').val('1');
 		}
 	})
@@ -179,4 +182,14 @@ function success() {
 
 function error() {
 	toggleHidden($('#error'));
+}
+
+function adjustDefaultSelectValue(selectId) {
+	var selectInput = $(selectId);
+	if (selectInput.prop('options').length == 2) {
+		// length of 2 means there is only 1 real option
+		selectInput.prop('selectedIndex', 1);
+	} else {
+		selectInput.prop('selectedIndex', 0);		
+	}
 }
