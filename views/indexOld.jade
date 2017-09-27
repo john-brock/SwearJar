@@ -24,13 +24,13 @@ block content
 				select#userInput(type='text', class='form-control input-lg')
 					option(selected disabled) -- Who --
 					each user in users
-						option
+						option(value=user._id)
 							| #{user.name}
 			div(class='form-group')
 				select#wordInput(type='text', class='form-control input-lg')
 					option(selected disabled) -- Word --
 					each word in words
-						option
+						option(value=word._id)
 							| #{word.word}
 			div(class='form-group')
 				label(for='countInput') Number of Infractions

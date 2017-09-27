@@ -186,10 +186,13 @@ function error() {
 
 function adjustDefaultSelectValue(selectId) {
 	var selectInput = $(selectId);
-	if (selectInput.prop('options').length == 2) {
-		// length of 2 means there is only 1 real option
-		selectInput.prop('selectedIndex', 1);
-	} else {
-		selectInput.prop('selectedIndex', 0);		
+	var selectOptions = selectInput.prop('options');
+	if (null != selectOptions) {
+		if (selectInput.prop('options').length == 2) {
+			// length of 2 means there is only 1 real option
+			selectInput.prop('selectedIndex', 1);
+		} else {
+			selectInput.prop('selectedIndex', 0);		
+		}
 	}
 }
