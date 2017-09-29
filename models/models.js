@@ -6,6 +6,8 @@ var mongoose = require('mongoose');
 // *******************************
 var userSchema = mongoose.Schema({
   name: String,
+  googleId: String,
+  email: String,
   words: [{
     word: { type: String, ref: 'Word' },
     count: {type: Number, default: 0},
@@ -37,6 +39,24 @@ userSchema.methods.getTotalOwed = function(callback) {
   var moneyPaid = this.moneyPaid;
   this.getTotalInfractions(function(totalInfractions) {
     callback((totalInfractions * wordCost) - moneyPaid);
+  });
+}
+
+userSchema.statics.findOrCreate = function(profile, callback) {
+  User.find({'googleId' : profile.id}, function(err, users) {
+    if (err || null == users) { callback(err, null); }
+    if (users.length > 0) {
+      callback(null, users[0]);
+    } else {
+      var user = new User();
+      user.googleId = profile.id;
+      user.name = profile.displayName;
+      user.email = profile.emails[0].value;
+      user.save(function(err, savedUser) {
+        if (err || null == savedUser) { callback(err, null); }
+        callback(null, savedUser);
+      });
+    }
   });
 }
 

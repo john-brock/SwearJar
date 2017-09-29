@@ -1,5 +1,6 @@
 // app.js
 var express = require('express');
+var session = require('express-session');
 var bodyParser = require('body-parser');
 var jade = require('jade');
 var logfmt = require('logfmt');
@@ -7,6 +8,7 @@ var mongo = require('mongodb');
 var mongoose = require('mongoose');
 var config = require('./config.json');
 var models = require('./models/models.js');
+var passport = require('./config/passport.js');
 
 var app = express();
 var router = express.Router();
@@ -20,6 +22,10 @@ app.use(bodyParser.urlencoded({'extended':true}));
 app.use(bodyParser.json());
 app.use(express.static(__dirname + '/public'));
 app.use(logfmt.requestLogger());
+
+app.use(session({ secret: 'test' }));
+app.use(passport.initialize());
+app.use(passport.session());
 
 if ('development' == app.get('env')) { }
 if ('production' == app.get('env')) { }
@@ -41,7 +47,7 @@ router.param('user_id', function(req, res, next, id) {
 });
 
 router.route('/users/summary')
-.get(function(req, res, next) {
+.get(isLoggedIn, function(req, res, next) {
   var count = 0;
   var userSummary = [];
   var totalInfractions = 0;
@@ -74,17 +80,17 @@ router.route('/users/summary')
 })
 
 router.route('/users/:user_id/owes')
-.get(function(req, res, next) {
+.get(isLoggedIn, function(req, res, next) {
   req.user.getTotalOwed(function(total) {
     res.json(total);
   })
 })
 
 router.route('/users/:user_id/paid')
-.get(function(req, res, next) {
+.get(isLoggedIn, function(req, res, next) {
   res.json(req.user.moneyPaid);
 })
-.post(function(req, res, next) {
+.post(isLoggedIn, function(req, res, next) {
   var user = req.user;
   var amount = parseFloat(req.param('amount'));
   if (isNaN(amount)) {
@@ -102,17 +108,17 @@ router.route('/users/:user_id/paid')
 })
 
 router.route('/users/:user_id/words/count')
-.get(function(req, res, next) {
+.get(isLoggedIn, function(req, res, next) {
   req.user.getTotalInfractions(function(total) {
     res.json(total);
   });
 })
 
 router.route('/users/:user_id/words')
-.get(function(req, res, next) {
+.get(isLoggedIn, function(req, res, next) {
   res.json(req.user.words);
 })
-.post(function(req, res, next) {
+.post(isLoggedIn, function(req, res, next) {
   var user = req.user;
   var allowDelete = req.param('delete') == 'true';
   var wordIdParam = req.param('word');
@@ -196,12 +202,12 @@ function saveUser(user, word, userInfo, callback) {
 }
 
 router.route('/users/:user_id')
-.get(function(req, res, next) {
+.get(isLoggedIn, function(req, res, next) {
   res.json(req.user);
 })
 
 router.route('/users')
-.get(function(req, res, next) {
+.get(isLoggedIn, function(req, res, next) {
 
   User.find()
     .populate('words.word')
@@ -210,7 +216,7 @@ router.route('/users')
       res.json(users);
     });
 })
-.post(function(req, res, next) {
+.post(isLoggedIn, function(req, res, next) {
   var userId = req.param('id') == null ? null : mongoose.Types.ObjectId.createFromHexString(req.param('id').toString());
   var userInfo = {wordCost : req.param('wordCost'), userName : req.param('name')};
   User.find({_id: userId}, function(err, users) {
@@ -263,7 +269,7 @@ function setUserName(user, name, callback) {
 }
 
 router.route('/words/count')
-.get(function(req, res, next) {
+.get(isLoggedIn, function(req, res, next) {
   Word.getTotalCount(function(err, result) {
     if (err) { return next(new Error('Error when attempting to get total count for all words. ' + err)) }
     res.json(result);
@@ -283,12 +289,12 @@ router.param('word_id', function(req, res, next, word_id) {
 });
 
 router.route('/words/:word_id')
-.get(function(req, res, next) {
+.get(isLoggedIn, function(req, res, next) {
   res.json(req.word);
 })
 
 router.route('/words/:word_id/count')
-.get(function(req, res, next) {
+.get(isLoggedIn, function(req, res, next) {
   req.word.getTotalCount(function(err, total) {
     if (err) { return next(new Error('Error getting the total count of word usage. ' + err)); }
     res.json(total);
@@ -296,13 +302,13 @@ router.route('/words/:word_id/count')
 })
 
 router.route('/words')
-.get(function(req, res, next) {
+.get(isLoggedIn, function(req, res, next) {
   Word.find(function(err, words) {
     if (err) { return next(new Error('Error retrieving all words. ' + err)); }
     res.json(words);
   })
 })
-.post(function(req, res, next) {
+.post(isLoggedIn, function(req, res, next) {
   var wordText = req.param('word');
   var category = req.param('category');
   var isActiveOption = req.param('active');
@@ -340,24 +346,24 @@ router.param('team_id', function(req, res, next, team_id) {
 });
 
 router.route('/teams/:team_id/add/:user_id')
-.post(function(req, res, next) {
+.post(isLoggedIn, function(req, res, next) {
   var team = req.team;
   var memberAlreadyAdded = team.members.some(function(member) {
     return member.toString() == req.user._id;
   })
-  if (!memberAlreadyAdded) {
-    team.members.push(req.user);
+  if (memberAlreadyAdded) {
+    res.send(200);
+  } else {
+    team.members.push(req.user._id);
     team.save(function(err, team) {
       if (err) { return next(new Error('Error adding user to team. ' + err)); }
       res.send(200);
-      return;
     })    
   }
-  res.send(200);
 })
 
 router.route('/teams')
-.get(function(req, res, next) {
+.get(isLoggedIn, function(req, res, next) {
   Team.find()
    .populate('members')
    .exec(function(err, teams) {
@@ -365,7 +371,7 @@ router.route('/teams')
       res.json(teams);
     });
 })
-.post(function(req, res, next) {
+.post(isLoggedIn, function(req, res, next) {
   var name = req.param('name');
   var team = new Team({
     name: name
@@ -395,17 +401,45 @@ function renderPage(pageToRender, req, res) {
   });
 }
 
-app.get('/', function(req, res) {
+app.get('/', isLoggedIn, function(req, res) {
   renderPage('indexOld', req, res);
 });
 
-app.get('/new', function(req, res) {
+app.get('/new', isLoggedIn, function(req, res) {
   renderPage('index', req, res);
 });
 
-app.get('/charts', function(req, res) {
+app.get('/charts', isLoggedIn, function(req, res) {
   res.render('charts');
 });
+
+app.get(
+  '/auth/google',
+  passport.authenticate(
+    'google', 
+    { scope: [
+        'https://www.googleapis.com/auth/plus.login',
+        'https://www.googleapis.com/auth/plus.profile.emails.read'
+      ] 
+    }
+  )
+);
+
+app.get(
+  '/auth/google/callback', 
+  passport.authenticate('google', { failureRedirect: '/login' }),
+  function(req, res) {
+    res.redirect('/');
+  }
+);
+
+// route middleware to make sure a user is logged in
+function isLoggedIn(req, res, next) {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.redirect('/auth/google');
+}
 
 mongoose.connect(mongoUri);
 var db = mongoose.connection;
