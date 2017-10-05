@@ -36,24 +36,54 @@ var Team = models.Team;
 
 router.param('user_id', function(req, res, next, id) {
   userId = mongoose.Types.ObjectId.createFromHexString(id.toString())
-  User.find({_id: userId}, function(err, users) {
-    if (null != users && users.length > 0) {
-      req.user = users[0];
-      next();
-    } else {
-      return next(new Error('User not found!'));
-    }
-  });
+  User.find({_id: userId})
+    .populate('team')
+    .populate('words.word')
+    .exec(function(err, users) {
+      if (null != users && users.length > 0) {
+        req.user = users[0];
+        next();
+      } else {
+        return next(new Error('User not found!'));
+      }
+    });
+});
+
+router.param('word_id', function(req, res, next, word_id) {
+  wordId = mongoose.Types.ObjectId.createFromHexString(word_id.toString())
+  Word.find({_id: wordId})
+    .populate('team')
+    .exec(function(err, words) {
+      if (words.length > 0) {
+        req.word = words[0];
+        next();
+      } else {
+        return next(new Error('No matching Word found.'));
+      }
+    });
+});
+
+router.param('team_id', function(req, res, next, team_id) {
+  teamObjectId = mongoose.Types.ObjectId.createFromHexString(team_id.toString())
+  Team.find({_id: teamObjectId})
+    .exec(function(err, teams) {
+      if (!err && teams.length > 0) {
+        req.team = teams[0];
+        next();
+      } else {
+        return next(new Error('No matching Team found. ' + err));
+      }
+    });
 });
 
 router.route('/users/summary')
-.get(isLoggedIn, function(req, res, next) {
+.get(isLoggedIntoTeam, function(req, res, next) {
   var count = 0;
   var userSummary = [];
   var totalInfractions = 0;
   var totalOwed = 0;
   var totalPaid = 0;
-  User.find({}, function(err, users) {
+  User.find({'team' : req.user.team._id}, function(err, users) {
     if (err) { return next(new Error('Error finding users.')); }
     for (var i=0; i<users.length; i++) {
       var user = users[i];
@@ -80,14 +110,14 @@ router.route('/users/summary')
 })
 
 router.route('/users/:user_id/owes')
-.get(isLoggedIn, function(req, res, next) {
+.get(isLoggedIntoTeam, function(req, res, next) {
   req.user.getTotalOwed(function(total) {
     res.json(total);
   })
 })
 
 router.route('/users/:user_id/paid')
-.get(isLoggedIn, function(req, res, next) {
+.get(isLoggedIntoTeam, function(req, res, next) {
   res.json(req.user.moneyPaid);
 })
 .post(isLoggedIn, function(req, res, next) {
@@ -96,8 +126,8 @@ router.route('/users/:user_id/paid')
   if (isNaN(amount)) {
     return next(new Error('Error: amount must be a number.'));
   } else {
-    user.moneyPaid += amount;
-    user.update(function(err, user) {
+    var totalPaid = user.moneyPaid + amount;
+    User.findOneAndUpdate({'_id': user._id}, {'$set':{'moneyPaid': totalPaid}}, function(err, user) {
       if (err) {
         return next(new Error('Error updating user. Please try again. ' + err));
       } else {
@@ -108,17 +138,17 @@ router.route('/users/:user_id/paid')
 })
 
 router.route('/users/:user_id/words/count')
-.get(isLoggedIn, function(req, res, next) {
+.get(isLoggedIntoTeam, function(req, res, next) {
   req.user.getTotalInfractions(function(total) {
     res.json(total);
   });
 })
 
 router.route('/users/:user_id/words')
-.get(isLoggedIn, function(req, res, next) {
+.get(isLoggedIntoTeam, function(req, res, next) {
   res.json(req.user.words);
 })
-.post(isLoggedIn, function(req, res, next) {
+.post(isLoggedIntoTeam, function(req, res, next) {
   var user = req.user;
   var allowDelete = req.param('delete') == 'true';
   var wordIdParam = req.param('word');
@@ -142,7 +172,8 @@ function updateUserWords(user, word, userInfo, callback) {
   var count = 0;
   var origCount = user.words.length;
   for (var i=0; i<origCount; i++) {
-    if (user.words[i]._id === word.word._id) {
+    if (user.words[i].word._id == word.word) {
+      console.log('word match: ' + word.word);
       user.words[i].count += word.count;
       wordFound = true;
     }
@@ -201,15 +232,31 @@ function saveUser(user, word, userInfo, callback) {
   });
 }
 
+router.route('/users/:user_id/join/:team_id')
+.post(isLoggedIn, function(req, res, next) {
+  var user = req.user;
+  user.team = req.team._id;
+  User.findOneAndUpdate({'_id': req.user._id}, {'$set':{'team': req.team._id}}, function(err, user) {
+    if (err) {
+      console.log('Error ' + err);
+      return next(new Error('Error updating user. Please try again. ' + err));
+    } else {
+      console.log('success');
+      console.log(user);
+      res.send(200);
+    }
+  });
+})
+
 router.route('/users/:user_id')
 .get(isLoggedIn, function(req, res, next) {
   res.json(req.user);
 })
 
 router.route('/users')
-.get(isLoggedIn, function(req, res, next) {
+.get(isLoggedIntoTeam, function(req, res, next) {
 
-  User.find()
+  User.find({'team': req.user.team._id})
     .populate('words.word')
     .exec(function(err, users) {
       if (err) { return next(new Error('Error retireving all users. ' + err)); }
@@ -269,32 +316,20 @@ function setUserName(user, name, callback) {
 }
 
 router.route('/words/count')
-.get(isLoggedIn, function(req, res, next) {
-  Word.getTotalCount(function(err, result) {
+.get(isLoggedIntoTeam, function(req, res, next) {
+  Word.getTotalCount(req.user.team._id, function(err, result) {
     if (err) { return next(new Error('Error when attempting to get total count for all words. ' + err)) }
     res.json(result);
   })
 })
 
-router.param('word_id', function(req, res, next, word_id) {
-  wordId = mongoose.Types.ObjectId.createFromHexString(word_id.toString())
-  Word.find({_id: wordId}, function(err, words) {
-    if (words.length > 0) {
-      req.word = words[0];
-      next();
-    } else {
-      return next(new Error('No matching Word found.'));
-    }
-  });
-});
-
 router.route('/words/:word_id')
-.get(isLoggedIn, function(req, res, next) {
+.get(isLoggedIntoTeam, function(req, res, next) {
   res.json(req.word);
 })
 
 router.route('/words/:word_id/count')
-.get(isLoggedIn, function(req, res, next) {
+.get(isLoggedIntoTeam, function(req, res, next) {
   req.word.getTotalCount(function(err, total) {
     if (err) { return next(new Error('Error getting the total count of word usage. ' + err)); }
     res.json(total);
@@ -302,28 +337,29 @@ router.route('/words/:word_id/count')
 })
 
 router.route('/words')
-.get(isLoggedIn, function(req, res, next) {
-  Word.find(function(err, words) {
+.get(isLoggedIntoTeam, function(req, res, next) {
+  Word.find({'team': req.user.team._id}, function(err, words) {
     if (err) { return next(new Error('Error retrieving all words. ' + err)); }
     res.json(words);
   })
 })
-.post(isLoggedIn, function(req, res, next) {
+.post(isLoggedIntoTeam, function(req, res, next) {
   var wordText = req.param('word');
   var category = req.param('category');
-  var isActiveOption = req.param('active');
-  Word.find({word: wordText}, function (err, words) {
+  var active = req.param('active');
+  Word.find({team: req.user.team._id, word: wordText}, function (err, words) {
     if (err) {
       return next(new Error('Error attempting to find existing word.'));
     } else {
       var word = words.length > 0 ? words[0] : new Word({
         word: wordText,
+        team: req.user.team._id
       });
       if (null != category) {
         word.category = category;
       }
-      if (null != isActiveOption) {
-        word.isActiveOption = isActiveOption;
+      if (null != active) {
+        word.active = active;
       }
       word.save(function(err, word) {
         if (err) { return next(new Error('Error saving new word. ' + err)); }
@@ -333,39 +369,9 @@ router.route('/words')
   });
 })
 
-router.param('team_id', function(req, res, next, team_id) {
-  teamObjectId = mongoose.Types.ObjectId.createFromHexString(team_id.toString())
-  Team.find({_id: teamObjectId}, function(err, teams) {
-    if (!err && teams.length > 0) {
-      req.team = teams[0];
-      next();
-    } else {
-      return next(new Error('No matching Team found. ' + err));
-    }
-  });
-});
-
-router.route('/teams/:team_id/add/:user_id')
-.post(isLoggedIn, function(req, res, next) {
-  var team = req.team;
-  var memberAlreadyAdded = team.members.some(function(member) {
-    return member.toString() == req.user._id;
-  })
-  if (memberAlreadyAdded) {
-    res.send(200);
-  } else {
-    team.members.push(req.user._id);
-    team.save(function(err, team) {
-      if (err) { return next(new Error('Error adding user to team. ' + err)); }
-      res.send(200);
-    })    
-  }
-})
-
-router.route('/teams')
-.get(isLoggedIn, function(req, res, next) {
-  Team.find()
-   .populate('members')
+router.route('/team')
+.get(isLoggedIntoTeam, function(req, res, next) {
+  Team.find({'_id': req.user._id})
    .exec(function(err, teams) {
     if (err) { return next(new Error('Error retrieving all teams. ' + err)); }
       res.json(teams);
@@ -385,20 +391,25 @@ router.route('/teams')
 function renderPage(pageToRender, req, res) {
   var userList;
   var words;
-  var users = User.find( {$query: {}, $orderby : {name: 1} }, function(err, users) {
-    if (err) {
-      res.send(500);
-    } else {
-      userList = users;
-      Word.find( {$query: {'isActiveOption': {$ne: false}}, $orderby: { word: 1 } }, function(err, words) {
-        if (err) {
-          res.send(500);
-        } else {
-          res.render(pageToRender, {'users': userList, 'words': words});
-        }
-      });
-    }
-  });
+  var teamId = req.user.team._id;
+  var users = User.find({'team': teamId})
+    .sort({'name': 1})
+    .exec(function(err, users) {
+      if (err) {
+        res.send(500);
+      } else {
+        userList = users;
+        Word.find({'$and': [{'team': teamId}, {'active': {$ne: false}}]})
+          .sort({'word': 1 })
+          .exec(function(err, words) {
+            if (err) {
+              res.send(500);
+            } else {
+              res.render(pageToRender, {'users': userList, 'words': words});
+            }
+          });
+      }
+    });
 }
 
 app.get('/', isLoggedIn, function(req, res) {
@@ -438,6 +449,17 @@ function isLoggedIn(req, res, next) {
   if (req.isAuthenticated()) {
     return next();
   }
+  res.redirect('/auth/google');
+}
+
+// route middleware to make sure a user is logged in and a member of a team
+// TODO - check that queries / access is not cross-team 
+// currently - just checking "is user logged into some team"
+function isLoggedIntoTeam(req, res, next) {
+  if (req.isAuthenticated() && null != req.user.team) {
+    return next();
+  }
+  // TODO - redirect to JOIN_TEAM Page
   res.redirect('/auth/google');
 }
 

@@ -1,11 +1,8 @@
 // models.js
 var mongoose = require('mongoose');
 
-// *******************************
-// USER MODEL and SCHEMA
-// *******************************
 var userSchema = mongoose.Schema({
-  name: String,
+  name: {type: String, required: true},
   googleId: String,
   email: String,
   words: [{
@@ -14,14 +11,31 @@ var userSchema = mongoose.Schema({
     _id: false
   }],
   wordCost: {type: Number, default: 0.25},
-  moneyPaid: {type: Number, default: 0}
+  moneyPaid: {type: Number, default: 0},
+  team: {type: String, ref: 'Team'}  
 });
 
+var wordSchema = mongoose.Schema({
+  word: {type: String, required: true},
+  category: String,
+  active: {type: Boolean, default: true},
+  team: {type: String, ref: 'Team'}
+});
+
+var teamSchema = mongoose.Schema({
+  name: {type: String, required: true},
+  active: {type: Boolean, default: true}
+});
+
+// *******************************
+// USER SCHEMA METHODS
+// *******************************
 userSchema.methods.getTotalInfractions = function(callback) {
   var wordCountTotal = 0;
   var words = this.words;
   var count = 0;
   for (var i=0; i<words.length; i++) {
+    // TODO filter for words related to current team rather than all
     var wordObj = words[i];
     wordCountTotal += words[i].count;
     count++;
@@ -61,17 +75,11 @@ userSchema.statics.findOrCreate = function(profile, callback) {
 }
 
 // *******************************
-// WORD MODEL and SCHEMA
+// WORD SCHEMA METHODS
 // *******************************
-var wordSchema = mongoose.Schema({
-  word: {type: String, required: true},
-  category: String,
-  isActiveOption: {type: Boolean, default: true}
-});
-
 wordSchema.methods.getTotalCount = function(callback) {
   var word = this._id;
-  User.find({'words.word':word}, function(err, users) {
+  User.find({'$and':[{'team':this.team._id}, {'words.word':word}]}, function(err, users) {
     if (err) { callback(err, null); }
     var count = 0;
     var totalWordsToCheck = 0;
@@ -105,28 +113,30 @@ function getTotalUseCount(totalWordsToCheck, users, word, callback) {
   }
 }
 
-wordSchema.statics.getTotalCount = function(callback) {
-  Word.find(function(err, words) {
-    if (err) { callback(err, null); }
-    var countMap = {};
-    var count = 0;
-    var numWords = words.length;
-    for (var i=0; i<numWords; i++) {
-      var word = words[i];
-      if (word.word) {
-        addCountToMap(word, function(err, wordText, total) {
-          if (err) { callback(err, null); }
-          countMap[wordText] = total;
-          count++;
-          if (count == numWords) {
-            callback(null, countMap);
-          }
-        })
-      } else {
-        count++;  // mark that we have processed a Word if it doesn't have a word attribute
+wordSchema.statics.getTotalCount = function(team_id, callback) {
+  Word.find({'team': team_id})
+    .populate('team')
+    .exec(function(err, words) {
+      if (err) { callback(err, null); }
+      var countMap = {};
+      var count = 0;
+      var numWords = words.length;
+      for (var i=0; i<numWords; i++) {
+        var word = words[i];
+        if (word.word) {
+          addCountToMap(word, function(err, wordText, total) {
+            if (err) { callback(err, null); }
+            countMap[wordText] = total;
+            count++;
+            if (count == numWords) {
+              callback(null, countMap);
+            }
+          })
+        } else {
+          count++;  // mark that we have processed a Word if it doesn't have a word attribute
+        }
       }
-    }
-  });
+    });
 }
 
 function addCountToMap(word, callback) {
@@ -137,13 +147,8 @@ function addCountToMap(word, callback) {
 }
 
 // *******************************
-// TEAM MODEL and SCHEMA
+// TEAM SCHEMA METHODS
 // *******************************
-var teamSchema = mongoose.Schema({
-  name: String,
-  members: [{ type: String, ref: 'User' }],
-  active: {type: Boolean, default: true}
-});
 
 // *******************************
 // Export Object Models
