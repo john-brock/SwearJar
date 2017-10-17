@@ -20,6 +20,10 @@ $(document).ready(function(){
 		submitForm();
 	});
 
+	$('#signup').click(function() { 
+		signup();
+	});
+
 	$('button[class$="user"]').click(function() {
 		var userId = this.getAttribute('data-user');
 		var idPosition = ids.indexOf(userId);
@@ -126,6 +130,11 @@ function submitForm() {
 			$('#countInput').val('1');
 		}
 	})
+}
+
+function signup() {
+	var team = $('#teamInput').val();
+    window.location = "/users/signup/" + team;
 }
 
 function submitBulk() {

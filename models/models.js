@@ -23,7 +23,7 @@ var wordSchema = mongoose.Schema({
 });
 
 var teamSchema = mongoose.Schema({
-  name: {type: String, required: true},
+  name: {type: String, required: true, unique: true, trim: true},
   active: {type: Boolean, default: true}
 });
 

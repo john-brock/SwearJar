@@ -109,6 +109,12 @@ router.route('/users/summary')
   });
 })
 
+router.route('/users/signup/:team_id')
+.get(function(req, res, next) {
+  req.session.team = req.team;
+  res.redirect('/auth/google')
+})
+
 router.route('/users/:user_id/owes')
 .get(isLoggedIntoTeam, function(req, res, next) {
   req.user.getTotalOwed(function(total) {
@@ -234,9 +240,9 @@ function saveUser(user, word, userInfo, callback) {
 
 router.route('/users/:user_id/join/:team_id')
 .post(isLoggedIn, function(req, res, next) {
-  var user = req.user;
-  user.team = req.team._id;
-  User.findOneAndUpdate({'_id': req.user._id}, {'$set':{'team': req.team._id}}, function(err, user) {
+  var user_id = req.user._id;
+  var team_id = req.team._id;
+  setTeamOnUser(user_id, team_id, function(err, user) {
     if (err) {
       console.log('Error ' + err);
       return next(new Error('Error updating user. Please try again. ' + err));
@@ -247,6 +253,16 @@ router.route('/users/:user_id/join/:team_id')
     }
   });
 })
+
+function setTeamOnUser(user_id, team_id, callback) {
+  User.findOneAndUpdate(
+    {'_id': user_id}, 
+    {'$set':{'team': team_id}}, 
+    function(err, user) {
+      return callback(err, user);
+    }
+  );  
+}
 
 router.route('/users/:user_id')
 .get(isLoggedIn, function(req, res, next) {
@@ -412,6 +428,18 @@ function renderPage(pageToRender, req, res) {
     });
 }
 
+function renderSignupPage(pageToRender, req, res) {
+  Team.find({'active': true})
+    .sort({'name': 1})
+    .exec(function(err, teams) {
+      if (err) {
+        res.send(500);
+      } else {
+          res.render(pageToRender, {'teams': teams});
+      }
+    });
+}
+
 app.get('/', isLoggedIn, function(req, res) {
   renderPage('indexOld', req, res);
 });
@@ -440,16 +468,31 @@ app.get(
   '/auth/google/callback', 
   passport.authenticate('google', { failureRedirect: '/login' }),
   function(req, res) {
-    res.redirect('/');
+    if (null == req.user.team || (null != req.session.team && req.user.team != req.session.team._id)) {
+      console.log('set team on user');
+      setTeamOnUser(req.user._id, req.session.team._id, function(err, user) {
+        res.redirect('/');
+      });
+    } else {
+      res.redirect('/');      
+    }
   }
 );
+
+app.get('/login', function(req, res) {
+  res.render('login');
+})
+
+app.get('/signup', function(req, res) {
+  renderSignupPage('signup', req, res);
+})
 
 // route middleware to make sure a user is logged in
 function isLoggedIn(req, res, next) {
   if (req.isAuthenticated()) {
     return next();
   }
-  res.redirect('/auth/google');
+  res.redirect('/login');
 }
 
 // route middleware to make sure a user is logged in and a member of a team
@@ -459,8 +502,7 @@ function isLoggedIntoTeam(req, res, next) {
   if (req.isAuthenticated() && null != req.user.team) {
     return next();
   }
-  // TODO - redirect to JOIN_TEAM Page
-  res.redirect('/auth/google');
+  res.redirect('/login');
 }
 
 mongoose.connect(mongoUri);
