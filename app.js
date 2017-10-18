@@ -33,6 +33,10 @@ if ('production' == app.get('env')) { }
 var User = models.User;
 var Word = models.Word;
 var Team = models.Team;
+var AuditHistory = models.AuditHistory;
+
+// TODO need to check usage of req.user vs req._passport.session.user
+// verify and enforce target user and requesting user are on same team
 
 router.param('user_id', function(req, res, next, id) {
   userId = mongoose.Types.ObjectId.createFromHexString(id.toString())
@@ -171,7 +175,20 @@ router.route('/users/:user_id/words')
       if (err) {
         return next(new Error(err));
       }
-      res.send(200);
+      // insert audit record
+      var auditHistory = AuditHistory({
+        'team' : req.user.team._id,
+        'reporter' : req._passport.session.user,
+        'reported' : req.user._id,
+        'word' : word.word,
+        'count' : word.count 
+      });
+      auditHistory.save(function(err, auditHistory) {
+        if (err) {
+          return next(new Error(err));
+        }
+        res.send(200);
+      });
     });
   }
 })
@@ -182,7 +199,6 @@ function updateUserWords(user, word, userInfo, callback) {
   var origCount = user.words.length;
   for (var i=0; i<origCount; i++) {
     if (user.words[i].word._id == word.word) {
-      console.log('word match: ' + word.word);
       user.words[i].count += word.count;
       wordFound = true;
     }
@@ -443,6 +459,30 @@ function renderSignupPage(pageToRender, req, res) {
     });
 }
 
+function renderHistoryPage(pageToRender, req, res) {
+  AuditHistory.find({'team': req.user.team._id})
+    .populate('team')
+    .populate('reported')
+    .populate('reporter')
+    .populate('word')
+    .limit(100)
+    .sort({'timestamp': -1})
+    .exec(function(err, auditHistoryDocs) {
+      if (err) {
+        res.send(500);
+      } else {
+          auditHistoryRows = []
+          for (var i=0; i<auditHistoryDocs.length; i++) {
+            var doc = auditHistoryDocs[i];
+            var timeSuffix = doc.count > 1 ? 's' : '';
+            var historyString = doc.reporter.name + ' reported ' + doc.reported.name + ' : ' + doc.word.word + ' ' + doc.count + ' time' + timeSuffix;
+            auditHistoryRows.push({'report' : historyString, 'timestamp' : doc.timestamp});
+          }
+          res.render(pageToRender, {'auditHistoryRows': auditHistoryRows});
+      }
+    });
+}
+
 app.get('/', isLoggedIn, function(req, res) {
   renderPage('indexOld', req, res);
 });
@@ -488,6 +528,10 @@ app.get('/login', function(req, res) {
 
 app.get('/signup', function(req, res) {
   renderSignupPage('signup', req, res);
+})
+
+app.get('/history', isLoggedIntoTeam, function(req, res) {
+  renderHistoryPage('history', req, res);
 })
 
 // route middleware to make sure a user is logged in

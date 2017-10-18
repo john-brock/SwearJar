@@ -27,6 +27,15 @@ var teamSchema = mongoose.Schema({
   active: {type: Boolean, default: true}
 });
 
+var auditHistorySchema = mongoose.Schema({
+  team: {type: String, ref: 'Team', required: true},
+  reporter: {type: String, ref: 'User', required: true},
+  reported: {type: String, ref: 'User', required: true},
+  word: { type: String, ref: 'Word', required: true},
+  count: {type: Number, required: true},
+  timestamp: {type: Date, default: Date.now}
+})
+
 // *******************************
 // USER SCHEMA METHODS
 // *******************************
@@ -158,7 +167,9 @@ function addCountToMap(word, callback) {
 var User = mongoose.model('User', userSchema);
 var Word = mongoose.model('Word', wordSchema);
 var Team = mongoose.model('Team', teamSchema);
+var AuditHistory = mongoose.model('AuditHistory', auditHistorySchema);
 
 module.exports.User = User;
 module.exports.Word = Word;
 module.exports.Team = Team;
+module.exports.AuditHistory = AuditHistory;
