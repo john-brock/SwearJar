@@ -24,3 +24,7 @@ td.google-visualization-table-th.gradient {
 .bold {
 	font-weight: bold;
 }
+
+input.num-center {
+	text-align: center;
+}

@@ -20,6 +20,14 @@ $(document).ready(function(){
 		submitForm();
 	});
 
+	$('#decrement').click(function() { 
+		adjustCount(-1);
+	});
+
+	$('#increment').click(function() { 
+		adjustCount(1);
+	});
+
 	$('#signup').click(function() { 
 		signup();
 	});
@@ -130,6 +138,11 @@ function submitForm() {
 			$('#countInput').val('1');
 		}
 	})
+}
+
+function adjustCount(adjustment) {
+	var count = $('#countInput').val();
+	$('#countInput').val(+count + adjustment);
 }
 
 function signup() {
