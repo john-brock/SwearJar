@@ -83,30 +83,33 @@ router.route('/users/summary')
   var totalInfractions = 0;
   var totalOwed = 0;
   var totalPaid = 0;
-  User.find({'team' : req.user.team._id}, function(err, users) {
-    if (err) { return next(new Error('Error finding users.')); }
-    for (var i=0; i<users.length; i++) {
-      var user = users[i];
-      var dataObj = {};
-      dataObj.name = user.name;
-      dataObj.totalPaid = user.moneyPaid;
-      totalPaid += user.moneyPaid;
-      user.getTotalInfractions(function(infractions) {
-        dataObj.totalInfractions = infractions;
-        totalInfractions += infractions;
-        user.getTotalOwed(function(owed) {
-          dataObj.totalOwed = owed;
-          totalOwed += owed;
-          userSummary.push(dataObj);
-          count++;
-          if (count == users.length) {
-            userSummary.push({ 'name':'Total', 'totalInfractions':totalInfractions, 'totalOwed':totalOwed, 'totalPaid':totalPaid });
-            res.json(userSummary);
-          }
-        })
-      });
-    }
-  });
+  User.find({'team' : req.user.team._id})
+    .populate('team')
+    .populate('words.word')
+    .exec(function(err, users) {
+      if (err) { return next(new Error('Error finding users.')); }
+      for (var i=0; i<users.length; i++) {
+        var user = users[i];
+        var dataObj = {};
+        dataObj.name = user.name;
+        dataObj.totalPaid = user.moneyPaid;
+        totalPaid += user.moneyPaid;
+        user.getTotalInfractions(function(infractions) {
+          dataObj.totalInfractions = infractions;
+          totalInfractions += infractions;
+          user.getTotalOwed(function(owed) {
+            dataObj.totalOwed = owed;
+            totalOwed += owed;
+            userSummary.push(dataObj);
+            count++;
+            if (count == users.length) {
+              userSummary.push({ 'name':'Total', 'totalInfractions':totalInfractions, 'totalOwed':totalOwed, 'totalPaid':totalPaid });
+              res.json(userSummary);
+            }
+          })
+        });
+      }
+    });
 })
 
 router.route('/users/signup/:team_id')

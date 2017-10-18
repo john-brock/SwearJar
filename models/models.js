@@ -33,11 +33,13 @@ var teamSchema = mongoose.Schema({
 userSchema.methods.getTotalInfractions = function(callback) {
   var wordCountTotal = 0;
   var words = this.words;
+  var team_id = this.team._id;
   var count = 0;
   for (var i=0; i<words.length; i++) {
-    // TODO filter for words related to current team rather than all
     var wordObj = words[i];
-    wordCountTotal += words[i].count;
+    if (team_id == wordObj.word.team) {
+      wordCountTotal += words[i].count;
+    }
     count++;
     if (count == words.length) {
       callback(wordCountTotal);
@@ -102,7 +104,7 @@ function getTotalUseCount(totalWordsToCheck, users, word, callback) {
   for (var i=0; i<users.length; i++) {
     var words = users[i].words;
     for (var j=0; j<words.length; j++) {
-      if (words[j].word._id === word._id) {
+      if (words[j].word == word) {
         total += words[j].count;
       }
       count++;
