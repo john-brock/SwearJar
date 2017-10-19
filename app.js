@@ -514,17 +514,29 @@ function renderHistoryPage(pageToRender, req, res) {
     });
 }
 
-app.get('/', isLoggedIn, function(req, res) {
+app.get('/', isLoggedIntoTeam, function(req, res) {
   renderPage('indexOld', req, res);
 });
 
-app.get('/bulk', isLoggedIn, function(req, res) {
+app.get('/bulk', isLoggedIntoTeam, function(req, res) {
   renderPage('index', req, res);
 });
 
-app.get('/charts', isLoggedIn, function(req, res) {
+app.get('/charts', isLoggedIntoTeam, function(req, res) {
   res.render('charts');
 });
+
+app.get('/history', isLoggedIntoTeam, function(req, res) {
+  renderHistoryPage('history', req, res);
+})
+
+app.get('/login', function(req, res) {
+  res.render('login');
+})
+
+app.get('/signup', function(req, res) {
+  renderSignupPage('signup', req, res);
+})
 
 app.get(
   '/auth/google',
@@ -542,7 +554,9 @@ app.get(
   '/auth/google/callback', 
   passport.authenticate('google', { failureRedirect: '/login' }),
   function(req, res) {
-    if (null == req.user.team || (null != req.session.team && String(req.user.team) != String(req.session.team._id))) {
+    if (null == req.user.team && null == req.session.team) {
+      res.redirect('/signup');
+    } else if ((null == req.user.team && null != req.session.team) || (null != req.session.team && String(req.user.team) != String(req.session.team._id))) {
       console.log('set team on user');
       setTeamOnUser(req.user._id, req.session.team._id, function(err, user) {
         res.redirect('/');
@@ -552,18 +566,6 @@ app.get(
     }
   }
 );
-
-app.get('/login', function(req, res) {
-  res.render('login');
-})
-
-app.get('/signup', function(req, res) {
-  renderSignupPage('signup', req, res);
-})
-
-app.get('/history', isLoggedIntoTeam, function(req, res) {
-  renderHistoryPage('history', req, res);
-})
 
 // route middleware to make sure a user is logged in
 function isLoggedIn(req, res, next) {

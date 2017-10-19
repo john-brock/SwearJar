@@ -57,6 +57,7 @@ $(document).ready(function(){
 
 	adjustDefaultSelectValue('#userInput');
 	adjustDefaultSelectValue('#wordInput');
+	adjustDefaultSelectValue('#teamInput');
 });
 
 function toggleIfNotHidden(element) {
