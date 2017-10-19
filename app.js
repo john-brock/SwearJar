@@ -35,9 +35,6 @@ var Word = models.Word;
 var Team = models.Team;
 var AuditHistory = models.AuditHistory;
 
-// TODO need to check usage of req.user vs req._passport.session.user
-// verify and enforce target user and requesting user are on same team
-
 router.param('user_id', function(req, res, next, id) {
   userId = mongoose.Types.ObjectId.createFromHexString(id.toString())
   User.find({_id: userId})
@@ -45,7 +42,7 @@ router.param('user_id', function(req, res, next, id) {
     .populate('words.word')
     .exec(function(err, users) {
       if (null != users && users.length > 0) {
-        req.user = users[0];
+        req.userObjectFromParam = users[0];
         next();
       } else {
         return next(new Error('User not found!'));
@@ -124,72 +121,96 @@ router.route('/users/signup/:team_id')
 
 router.route('/users/:user_id/owes')
 .get(isLoggedIntoTeam, function(req, res, next) {
-  req.user.getTotalOwed(function(total) {
-    res.json(total);
-  })
+  if (req.userObjectFromParam.team._id == req.user.team._id) {
+    req.userObjectFromParam.getTotalOwed(function(total) {
+      res.json(total);
+    });
+  } else {
+    res.json({});
+  }
 })
 
 router.route('/users/:user_id/paid')
 .get(isLoggedIntoTeam, function(req, res, next) {
-  res.json(req.user.moneyPaid);
+  if (req.userObjectFromParam.team._id == req.user.team._id) {
+    res.json(req.userObjectFromParam.moneyPaid);
+  } else {
+    res.json({});
+  }
 })
 .post(isLoggedIn, function(req, res, next) {
-  var user = req.user;
+  var user = req.userObjectFromParam;
   var amount = parseFloat(req.param('amount'));
   if (isNaN(amount)) {
     return next(new Error('Error: amount must be a number.'));
   } else {
     var totalPaid = user.moneyPaid + amount;
-    User.findOneAndUpdate({'_id': user._id}, {'$set':{'moneyPaid': totalPaid}}, function(err, user) {
-      if (err) {
-        return next(new Error('Error updating user. Please try again. ' + err));
-      } else {
-        res.json(user.moneyPaid);
+    User.findOneAndUpdate(
+      {'_id': user._id, 'team': req.user.team._id}, 
+      {'$set':{'moneyPaid': totalPaid}}, 
+      function(err, user) {
+        if (err) {
+          return next(new Error('Error updating user. Please try again. ' + err));
+        } else {
+          res.json(user.moneyPaid);
+        }
       }
-    });
+    );
   }
 })
 
 router.route('/users/:user_id/words/count')
 .get(isLoggedIntoTeam, function(req, res, next) {
-  req.user.getTotalInfractions(function(total) {
-    res.json(total);
-  });
+  if (req.userObjectFromParam.team._id == req.user.team._id) {
+    req.userObjectFromParam.getTotalInfractions(function(total) {
+      res.json(total);
+    });
+  } else {
+    res.json({});
+  }
 })
 
 router.route('/users/:user_id/words')
 .get(isLoggedIntoTeam, function(req, res, next) {
-  res.json(req.user.words);
+  if (req.userObjectFromParam.team._id == req.user.team._id) {
+    res.json(req.userObjectFromParam.words);
+  } else {
+    res.json({});
+  }
 })
 .post(isLoggedIntoTeam, function(req, res, next) {
-  var user = req.user;
-  var allowDelete = req.param('delete') == 'true';
-  var wordIdParam = req.param('word');
-  var word = {word: wordIdParam, count: parseInt(req.param('count'))};
-  if (isNaN(word.count) || (word.count <= 0 && !allowDelete)) {
-    return next(new Error('Error: count must be a positive number.'));
-  } else if (null == wordIdParam || wordIdParam.length == 0) {
-    return next(new Error('Error: word submitted was not valid.'));
-  } else {
-    updateUserWords(user, word, null, function(err) {
-      if (err) {
-        return next(new Error(err));
-      }
-      // insert audit record
-      var auditHistory = AuditHistory({
-        'team' : req.user.team._id,
-        'reporter' : req._passport.session.user,
-        'reported' : req.user._id,
-        'word' : word.word,
-        'count' : word.count 
-      });
-      auditHistory.save(function(err, auditHistory) {
+  if (req.userObjectFromParam.team._id == req.user.team._id) {
+    var user = req.userObjectFromParam;
+    var allowDelete = req.param('delete') == 'true';
+    var wordIdParam = req.param('word');
+    var word = {word: wordIdParam, count: parseInt(req.param('count'))};
+    if (isNaN(word.count) || (word.count <= 0 && !allowDelete)) {
+      return next(new Error('Error: count must be a positive number.'));
+    } else if (null == wordIdParam || wordIdParam.length == 0) {
+      return next(new Error('Error: word submitted was not valid.'));
+    } else {
+      updateUserWords(user, word, null, function(err) {
         if (err) {
           return next(new Error(err));
         }
-        res.send(200);
+        // insert audit record
+        var auditHistory = AuditHistory({
+          'team' : req.user.team._id,
+          'reporter' : req.user._id,
+          'reported' : req.userObjectFromParam._id,
+          'word' : word.word,
+          'count' : word.count 
+        });
+        auditHistory.save(function(err, auditHistory) {
+          if (err) {
+            return next(new Error(err));
+          }
+          res.send(200);
+        });
       });
-    });
+    }
+  } else {
+    res.json({});
   }
 })
 
@@ -259,7 +280,7 @@ function saveUser(user, word, userInfo, callback) {
 
 router.route('/users/:user_id/join/:team_id')
 .post(isLoggedIn, function(req, res, next) {
-  var user_id = req.user._id;
+  var user_id = req.userObjectFromParam._id;
   var team_id = req.team._id;
   setTeamOnUser(user_id, team_id, function(err, user) {
     if (err) {
@@ -285,12 +306,15 @@ function setTeamOnUser(user_id, team_id, callback) {
 
 router.route('/users/:user_id')
 .get(isLoggedIn, function(req, res, next) {
-  res.json(req.user);
+  if (req.userObjectFromParam.team._id == req.user.team._id) {
+    res.json(req.userObjectFromParam);
+  } else {
+    res.json({});
+  }
 })
 
 router.route('/users')
 .get(isLoggedIntoTeam, function(req, res, next) {
-
   User.find({'team': req.user.team._id})
     .populate('words.word')
     .exec(function(err, users) {
@@ -360,15 +384,23 @@ router.route('/words/count')
 
 router.route('/words/:word_id')
 .get(isLoggedIntoTeam, function(req, res, next) {
-  res.json(req.word);
+  if (req.word.team._id == req.user.team._id) {
+    res.json(req.word);
+  } else {
+    res.json({});
+  }
 })
 
 router.route('/words/:word_id/count')
 .get(isLoggedIntoTeam, function(req, res, next) {
-  req.word.getTotalCount(function(err, total) {
-    if (err) { return next(new Error('Error getting the total count of word usage. ' + err)); }
-    res.json(total);
-  });
+  if (req.word.team._id == req.user.team._id) {
+    req.word.getTotalCount(function(err, total) {
+      if (err) { return next(new Error('Error getting the total count of word usage. ' + err)); }
+      res.json(total);
+    });
+  } else {
+    res.json({});
+  }
 })
 
 router.route('/words')
@@ -406,7 +438,7 @@ router.route('/words')
 
 router.route('/team')
 .get(isLoggedIntoTeam, function(req, res, next) {
-  Team.find({'_id': req.user._id})
+  Team.find({'_id': req.user.team._id})
    .exec(function(err, teams) {
     if (err) { return next(new Error('Error retrieving all teams. ' + err)); }
       res.json(teams);
@@ -543,8 +575,6 @@ function isLoggedIn(req, res, next) {
 }
 
 // route middleware to make sure a user is logged in and a member of a team
-// TODO - check that queries / access is not cross-team 
-// currently - just checking "is user logged into some team"
 function isLoggedIntoTeam(req, res, next) {
   if (req.isAuthenticated() && null != req.user.team) {
     return next();
