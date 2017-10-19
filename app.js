@@ -288,7 +288,6 @@ router.route('/users/:user_id/join/:team_id')
       return next(new Error('Error updating user. Please try again. ' + err));
     } else {
       console.log('success');
-      console.log(user);
       res.send(200);
     }
   });
@@ -387,7 +386,6 @@ router.route('/words/:word_id')
   if (String(req.word.team._id) == String(req.user.team._id)) {
     res.json(req.word);
   } else {
-    console.log(req.word)
     res.json({});
   }
 })

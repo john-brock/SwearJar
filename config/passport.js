@@ -6,11 +6,15 @@ var configAuth = require('./auth.js');
 var models = require('../models/models.js');
 var User = models.User;
 
+var googleClientId = process.env.GOOGLE_CLIENT_ID || configAuth.googleAuth.clientId;
+var googleClientSecret = process.env.GOOGLE_CLIENT_SECRET || configAuth.googleAuth.clientSecret;
+var googleCallbackUrl = process.env.GOOGLE_CALLBACK_URL || configAuth.googleAuth.callbackUrl;
+
 passport.use(new GoogleStrategy(
 	{
-		clientID: configAuth.googleAuth.clientId,
-		clientSecret: configAuth.googleAuth.clientSecret,
-		callbackURL: configAuth.googleAuth.callbackUrl
+		clientID: googleClientId,
+		clientSecret: googleClientSecret,
+		callbackURL: googleCallbackUrl
 	},
 	function(accessToken, refreshToken, profile, done) {
 		User.findOrCreate(profile, function (err, user) {
