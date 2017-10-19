@@ -77,6 +77,8 @@ userSchema.statics.findOrCreate = function(profile, callback) {
       user.googleId = profile.id;
       user.email = profile.emails[0].value;
       user.name = profile.displayName != null && profile.displayName.length > 0 ? profile.displayName : user.email;
+      console.log(user)
+      console.log(profile)
       user.save(function(err, savedUser) {
         if (err || null == savedUser) { return callback(err, null); }
         callback(null, savedUser);
