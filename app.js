@@ -230,7 +230,7 @@ function updateUserWords(user, word, userInfo, callback) {
       }
       saveUser(user, word, null, function(err) {
         if (err) {
-          callback(err);
+          return callback(err);
         }
         callback(null);
       });
@@ -240,7 +240,7 @@ function updateUserWords(user, word, userInfo, callback) {
     user.words.push(word);
     saveUser(user, word, null, function(err) {
       if (err) {
-        callback(err);
+        return callback(err);
       }
       callback(null);
     });
@@ -256,7 +256,7 @@ function saveUser(user, word, userInfo, callback) {
         console.log('Refetch required!');
         User.find({_id: origId}, function(err, users) {
           if (err) {
-            callback(err);
+            return callback(err);
           } else if (users.length > 0) {
             if (word) {
               updateUserWords(users[0], word, null, callback);
@@ -345,11 +345,11 @@ function updateUserInfo(user, word, userInfo, callback) {
   setUserName(user, userInfo.userName, function(user) {
     setWordCost(user, userInfo.wordCost, function(err, user) {
       if (err) {
-        callback(err);
+        return callback(err);
       }
       saveUser(user, null, userInfo, function(err) {
         if (err) {
-          callback(err);
+          return callback(err);
         }
         callback(null);
       });
@@ -535,6 +535,7 @@ app.get('/login', function(req, res) {
 })
 
 app.get('/signup', function(req, res) {
+  // TODO ADD A NEW TEAM OPTION FOR BRAND NEW USERS
   renderSignupPage('signup', req, res);
 })
 

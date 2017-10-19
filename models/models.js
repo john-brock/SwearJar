@@ -69,16 +69,17 @@ userSchema.methods.getTotalOwed = function(callback) {
 
 userSchema.statics.findOrCreate = function(profile, callback) {
   User.find({'googleId' : profile.id}, function(err, users) {
-    if (err || null == users) { callback(err, null); }
+    if (err || null == users) { return callback(err, null); }
     if (users.length > 0) {
       callback(null, users[0]);
     } else {
       var user = new User();
       user.googleId = profile.id;
-      user.name = profile.displayName;
       user.email = profile.emails[0].value;
+      user.name = profile.displayName != null && profile.displayName.length > 0 ? profile.displayName : user.email;
+      console.log(user)
       user.save(function(err, savedUser) {
-        if (err || null == savedUser) { callback(err, null); }
+        if (err || null == savedUser) { return callback(err, null); }
         callback(null, savedUser);
       });
     }
@@ -91,7 +92,7 @@ userSchema.statics.findOrCreate = function(profile, callback) {
 wordSchema.methods.getTotalCount = function(callback) {
   var word = this._id;
   User.find({'$and':[{'team':this.team._id}, {'words.word':word}]}, function(err, users) {
-    if (err) { callback(err, null); }
+    if (err) { return callback(err, null); }
     var count = 0;
     var totalWordsToCheck = 0;
     for (var i=0; i<users.length; i++) {
@@ -128,7 +129,7 @@ wordSchema.statics.getTotalCount = function(team_id, callback) {
   Word.find({'team': team_id})
     .populate('team')
     .exec(function(err, words) {
-      if (err) { callback(err, null); }
+      if (err) { return callback(err, null); }
       var countMap = {};
       var count = 0;
       var numWords = words.length;
@@ -152,7 +153,7 @@ wordSchema.statics.getTotalCount = function(team_id, callback) {
 
 function addCountToMap(word, callback) {
   word.getTotalCount(function(err, total) {
-    if (err) { callback(err, null); }
+    if (err) { return callback(err, null); }
     callback(null, word.word, total);
   });
 }
