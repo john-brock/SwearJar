@@ -46,7 +46,7 @@ userSchema.methods.getTotalInfractions = function(callback) {
   var count = 0;
   for (var i=0; i<words.length; i++) {
     var wordObj = words[i];
-    if (team_id == wordObj.word.team) {
+    if (String(team_id) == String(wordObj.word.team)) {
       wordCountTotal += words[i].count;
     }
     count++;
@@ -113,7 +113,7 @@ function getTotalUseCount(totalWordsToCheck, users, word, callback) {
   for (var i=0; i<users.length; i++) {
     var words = users[i].words;
     for (var j=0; j<words.length; j++) {
-      if (words[j].word == word) {
+      if (String(words[j].word) == String(word)) {
         total += words[j].count;
       }
       count++;

@@ -121,7 +121,7 @@ router.route('/users/signup/:team_id')
 
 router.route('/users/:user_id/owes')
 .get(isLoggedIntoTeam, function(req, res, next) {
-  if (req.userObjectFromParam.team._id == req.user.team._id) {
+  if (String(req.userObjectFromParam.team._id) == String(req.user.team._id)) {
     req.userObjectFromParam.getTotalOwed(function(total) {
       res.json(total);
     });
@@ -132,7 +132,7 @@ router.route('/users/:user_id/owes')
 
 router.route('/users/:user_id/paid')
 .get(isLoggedIntoTeam, function(req, res, next) {
-  if (req.userObjectFromParam.team._id == req.user.team._id) {
+  if (String(req.userObjectFromParam.team._id) == String(req.user.team._id)) {
     res.json(req.userObjectFromParam.moneyPaid);
   } else {
     res.json({});
@@ -161,7 +161,7 @@ router.route('/users/:user_id/paid')
 
 router.route('/users/:user_id/words/count')
 .get(isLoggedIntoTeam, function(req, res, next) {
-  if (req.userObjectFromParam.team._id == req.user.team._id) {
+  if (String(req.userObjectFromParam.team._id) == String(req.user.team._id)) {
     req.userObjectFromParam.getTotalInfractions(function(total) {
       res.json(total);
     });
@@ -172,14 +172,14 @@ router.route('/users/:user_id/words/count')
 
 router.route('/users/:user_id/words')
 .get(isLoggedIntoTeam, function(req, res, next) {
-  if (req.userObjectFromParam.team._id == req.user.team._id) {
+  if (String(req.userObjectFromParam.team._id) == String(req.user.team._id)) {
     res.json(req.userObjectFromParam.words);
   } else {
     res.json({});
   }
 })
 .post(isLoggedIntoTeam, function(req, res, next) {
-  if (req.userObjectFromParam.team._id == req.user.team._id) {
+  if (String(req.userObjectFromParam.team._id) == String(req.user.team._id)) {
     var user = req.userObjectFromParam;
     var allowDelete = req.param('delete') == 'true';
     var wordIdParam = req.param('word');
@@ -219,7 +219,7 @@ function updateUserWords(user, word, userInfo, callback) {
   var count = 0;
   var origCount = user.words.length;
   for (var i=0; i<origCount; i++) {
-    if (user.words[i].word._id == word.word) {
+    if (String(user.words[i].word._id) == String(word.word)) {
       user.words[i].count += word.count;
       wordFound = true;
     }
@@ -306,7 +306,7 @@ function setTeamOnUser(user_id, team_id, callback) {
 
 router.route('/users/:user_id')
 .get(isLoggedIn, function(req, res, next) {
-  if (req.userObjectFromParam.team._id == req.user.team._id) {
+  if (String(req.userObjectFromParam.team._id) == String(req.user.team._id)) {
     res.json(req.userObjectFromParam);
   } else {
     res.json({});
@@ -384,16 +384,17 @@ router.route('/words/count')
 
 router.route('/words/:word_id')
 .get(isLoggedIntoTeam, function(req, res, next) {
-  if (req.word.team._id == req.user.team._id) {
+  if (String(req.word.team._id) == String(req.user.team._id)) {
     res.json(req.word);
   } else {
+    console.log(req.word)
     res.json({});
   }
 })
 
 router.route('/words/:word_id/count')
 .get(isLoggedIntoTeam, function(req, res, next) {
-  if (req.word.team._id == req.user.team._id) {
+  if (String(req.word.team._id) == String(req.user.team._id)) {
     req.word.getTotalCount(function(err, total) {
       if (err) { return next(new Error('Error getting the total count of word usage. ' + err)); }
       res.json(total);
@@ -519,7 +520,7 @@ app.get('/', isLoggedIn, function(req, res) {
   renderPage('indexOld', req, res);
 });
 
-app.get('/new', isLoggedIn, function(req, res) {
+app.get('/bulk', isLoggedIn, function(req, res) {
   renderPage('index', req, res);
 });
 
@@ -543,7 +544,7 @@ app.get(
   '/auth/google/callback', 
   passport.authenticate('google', { failureRedirect: '/login' }),
   function(req, res) {
-    if (null == req.user.team || (null != req.session.team && req.user.team != req.session.team._id)) {
+    if (null == req.user.team || (null != req.session.team && String(req.user.team) != String(req.session.team._id))) {
       console.log('set team on user');
       setTeamOnUser(req.user._id, req.session.team._id, function(err, user) {
         res.redirect('/');
