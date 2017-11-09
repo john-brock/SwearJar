@@ -68,20 +68,29 @@ userSchema.methods.getTotalOwed = function(callback) {
 }
 
 userSchema.statics.findOrCreate = function(profile, callback) {
-  User.find({'googleId' : profile.id}, function(err, users) {
+  var userEmail = profile.emails[0].value;
+  User.find({'email' : userEmail}, function(err, users) {
     if (err || null == users) { return callback(err, null); }
     if (users.length > 0) {
-      callback(null, users[0]);
+      var user = users[0];
+      if (user.googleId != profile.id) {
+        // update user info for user who hasn't logged in before
+        user.googleId = profile.id;
+        user.save(function(err, savedUser) {
+          if (err || null == savedUser) { return callback(err, null); }
+          return callback(null, savedUser);
+        });
+      } else {
+        callback(null, user);        
+      }
     } else {
       var user = new User();
       user.googleId = profile.id;
-      user.email = profile.emails[0].value;
+      user.email = userEmail;
       user.name = profile.displayName != null && profile.displayName.length > 0 ? profile.displayName : user.email;
-      console.log(user)
-      console.log(profile)
       user.save(function(err, savedUser) {
         if (err || null == savedUser) { return callback(err, null); }
-        callback(null, savedUser);
+        return callback(null, savedUser);
       });
     }
   });

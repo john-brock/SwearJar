@@ -114,9 +114,15 @@ router.route('/users/summary')
 })
 
 router.route('/users/signup/:team_id')
-.get(function(req, res, next) {
-  req.session.team = req.team;
-  res.redirect('/auth/google')
+.post(isLoggedIn, function(req, res, next) {
+  setTeamOnUser(req.user._id, req.team._id, function(err, result) {
+    if (err) { 
+      console.log(err);
+      res.send(500);
+    } else { 
+      res.send(result); 
+    }
+  });
 })
 
 router.route('/users/:user_id/owes')
@@ -555,14 +561,17 @@ app.get(
   '/auth/google/callback', 
   passport.authenticate('google', { failureRedirect: '/login' }),
   function(req, res) {
+    // logged in
     if (null == req.user.team && null == req.session.team) {
+      // without a team - redirect to signup page to pick a team
       res.redirect('/signup');
     } else if ((null == req.user.team && null != req.session.team) || (null != req.session.team && String(req.user.team) != String(req.session.team._id))) {
-      console.log('set team on user');
+      // team set on context, so set team on user
       setTeamOnUser(req.user._id, req.session.team._id, function(err, user) {
         res.redirect('/');
       });
     } else {
+      // logged in, let's proceed
       res.redirect('/');      
     }
   }

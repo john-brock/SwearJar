@@ -147,8 +147,19 @@ function adjustCount(adjustment) {
 }
 
 function signup() {
-	var team = $('#teamInput').val();
-    window.location = "/users/signup/" + team;
+	var teamId = $('#teamInput').val();
+	$.ajax({
+		type: 'POST',
+		url: '/users/signup/' + teamId,
+		data: {},
+		success: function(msg) {
+			window.location = "/";
+		},
+		error: function() {
+			// should handle error better with user message
+			window.location = "/signup";
+		}
+	});
 }
 
 function submitBulk() {
