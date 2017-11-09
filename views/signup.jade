@@ -1,0 +1,13 @@
+extends layout
+
+block content
+	div.container
+		h1 Sign up
+		form#form(role='form')
+			div(class='form-group')
+				select#teamInput(type='text', class='form-control input-lg')
+					option(selected disabled) -- Team --
+					each team in teams
+						option(value=team._id)
+							| #{team.name}
+			a#signup(type='submit', class='btn btn-primary btn-lg btn-block') Join Team

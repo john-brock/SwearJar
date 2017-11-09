@@ -1,11 +1,14 @@
 // app.js
 var express = require('express');
+var session = require('express-session');
 var bodyParser = require('body-parser');
 var jade = require('jade');
 var logfmt = require('logfmt');
 var mongo = require('mongodb');
 var mongoose = require('mongoose');
 var config = require('./config.json');
+var models = require('./models/models.js');
+var passport = require('./config/passport.js');
 
 var app = express();
 var router = express.Router();
@@ -20,220 +23,200 @@ app.use(bodyParser.json());
 app.use(express.static(__dirname + '/public'));
 app.use(logfmt.requestLogger());
 
+app.use(session({ secret: 'test' }));
+app.use(passport.initialize());
+app.use(passport.session());
+
 if ('development' == app.get('env')) { }
 if ('production' == app.get('env')) { }
 
-var userSchema = mongoose.Schema({
-  _id: String,
-  name: String,
-  words: [{
-    word: {type: String},
-    count: {type: Number, default: 0}
-  }],
-  wordCost: {type: Number, default: 0.25},
-  moneyPaid: {type: Number, default: 0}
-});
-
-userSchema.methods.getTotalInfractions = function(callback) {
-  var wordCountTotal = 0;
-  var words = this.words;
-  var count = 0;
-  for (var i=0; i<words.length; i++) {
-    var wordObj = words[i];
-    wordCountTotal += words[i].count;
-    count++;
-    if (count == words.length) {
-      callback(wordCountTotal);
-    }
-  }
-  if (words.length == 0) { 
-    callback(wordCountTotal); 
-  }
-}
-
-userSchema.methods.getTotalOwed = function(callback) {
-  var wordCost = this.wordCost;
-  var moneyPaid = this.moneyPaid;
-  this.getTotalInfractions(function(totalInfractions) {
-    callback((totalInfractions * wordCost) - moneyPaid);
-  });
-}
-
-var wordSchema = mongoose.Schema({
-  word: {type: String, required: true},
-  category: String,
-  isActiveOption: {type: Boolean, default: true}
-});
-
-wordSchema.methods.getTotalCount = function(callback) {
-  var word = this.word;
-  User.find({'words.word':word}, function(err, users) {
-    if (err) { callback(err, null); }
-    var count = 0;
-    var totalWordsToCheck = 0;
-    for (var i=0; i<users.length; i++) {
-      totalWordsToCheck += users[i].words.length;
-      count++;
-      if (count == users.length) {
-        getTotalUseCount(totalWordsToCheck, users, word, callback);
-      }
-    }
-    if (users.length == 0) {  // no users means no usage
-      callback(null, 0);
-    }
-  });
-}
-
-function getTotalUseCount(totalWordsToCheck, users, word, callback) {
-  var count = 0;
-  var total = 0;
-  for (var i=0; i<users.length; i++) {
-    var words = users[i].words;
-    for (var j=0; j<words.length; j++) {
-      if (words[j].word.toUpperCase() === word.toUpperCase()) {
-        total += words[j].count;
-      }
-      count++;
-      if (count == totalWordsToCheck) {
-        callback(null, total);
-      }
-    }
-  }
-}
-
-wordSchema.statics.getTotalCount = function(callback) {
-  Word.find(function(err, words) {
-    if (err) { callback(err, null); }
-    var countMap = {};
-    var count = 0;
-    var numWords = words.length;
-    for (var i=0; i<numWords; i++) {
-      var word = words[i];
-      if (word.word) {
-        addCountToMap(word, function(err, wordText, total) {
-          if (err) { callback(err, null); }
-          countMap[wordText] = total;
-          count++;
-          if (count == numWords) {
-            callback(null, countMap);
-          }
-        })
-      } else {
-        count++;  // mark that we have processed a Word if it doesn't have a word attribute
-      }
-    }
-  });
-}
-
-function addCountToMap(word, callback) {
-  word.getTotalCount(function(err, total) {
-    if (err) { callback(err, null); }
-    callback(null, word.word, total);
-  });
-}
-
-var User = mongoose.model('User', userSchema);
-var Word = mongoose.model('Word', wordSchema);
+var User = models.User;
+var Word = models.Word;
+var Team = models.Team;
+var AuditHistory = models.AuditHistory;
 
 router.param('user_id', function(req, res, next, id) {
-  User.find({_id: id}, function(err, users) {
-    if (users.length > 0) {
-      req.user = users[0];
-      next();
-    } else {
-      return next(new Error('User not found!'));
-    }
-  });
+  userId = mongoose.Types.ObjectId.createFromHexString(id.toString())
+  User.find({_id: userId})
+    .populate('team')
+    .populate('words.word')
+    .exec(function(err, users) {
+      if (null != users && users.length > 0) {
+        req.userObjectFromParam = users[0];
+        next();
+      } else {
+        return next(new Error('User not found!'));
+      }
+    });
+});
+
+router.param('word_id', function(req, res, next, word_id) {
+  wordId = mongoose.Types.ObjectId.createFromHexString(word_id.toString())
+  Word.find({_id: wordId})
+    .populate('team')
+    .exec(function(err, words) {
+      if (words.length > 0) {
+        req.word = words[0];
+        next();
+      } else {
+        return next(new Error('No matching Word found.'));
+      }
+    });
+});
+
+router.param('team_id', function(req, res, next, team_id) {
+  teamObjectId = mongoose.Types.ObjectId.createFromHexString(team_id.toString())
+  Team.find({_id: teamObjectId})
+    .exec(function(err, teams) {
+      if (!err && teams.length > 0) {
+        req.team = teams[0];
+        next();
+      } else {
+        return next(new Error('No matching Team found. ' + err));
+      }
+    });
 });
 
 router.route('/users/summary')
-.get(function(req, res, next) {
+.get(isLoggedIntoTeam, function(req, res, next) {
   var count = 0;
   var userSummary = [];
   var totalInfractions = 0;
   var totalOwed = 0;
   var totalPaid = 0;
-  User.find({}, function(err, users) {
-    if (err) { return next(new Error('Error finding users.')); }
-    for (var i=0; i<users.length; i++) {
-      var user = users[i];
-      var dataObj = {};
-      dataObj.name = user.name;
-      dataObj.totalPaid = user.moneyPaid;
-      totalPaid += user.moneyPaid;
-      user.getTotalInfractions(function(infractions) {
-        dataObj.totalInfractions = infractions;
-        totalInfractions += infractions;
-        user.getTotalOwed(function(owed) {
-          dataObj.totalOwed = owed;
-          totalOwed += owed;
-          userSummary.push(dataObj);
-          count++;
-          if (count == users.length) {
-            userSummary.push({ 'name':'Total', 'totalInfractions':totalInfractions, 'totalOwed':totalOwed, 'totalPaid':totalPaid });
-            res.json(userSummary);
-          }
-        })
-      });
+  User.find({'team' : req.user.team._id})
+    .populate('team')
+    .populate('words.word')
+    .exec(function(err, users) {
+      if (err) { return next(new Error('Error finding users.')); }
+      for (var i=0; i<users.length; i++) {
+        var user = users[i];
+        var dataObj = {};
+        dataObj.name = user.name;
+        dataObj.totalPaid = user.moneyPaid;
+        totalPaid += user.moneyPaid;
+        user.getTotalInfractions(function(infractions) {
+          dataObj.totalInfractions = infractions;
+          totalInfractions += infractions;
+          user.getTotalOwed(function(owed) {
+            dataObj.totalOwed = owed;
+            totalOwed += owed;
+            userSummary.push(dataObj);
+            count++;
+            if (count == users.length) {
+              userSummary.push({ 'name':'Total', 'totalInfractions':totalInfractions, 'totalOwed':totalOwed, 'totalPaid':totalPaid });
+              res.json(userSummary);
+            }
+          })
+        });
+      }
+    });
+})
+
+router.route('/users/signup/:team_id')
+.post(isLoggedIn, function(req, res, next) {
+  setTeamOnUser(req.user._id, req.team._id, function(err, result) {
+    if (err) { 
+      console.log(err);
+      res.send(500);
+    } else { 
+      res.send(result); 
     }
   });
 })
 
 router.route('/users/:user_id/owes')
-.get(function(req, res, next) {
-  req.user.getTotalOwed(function(total) {
-    res.json(total);
-  })
+.get(isLoggedIntoTeam, function(req, res, next) {
+  if (String(req.userObjectFromParam.team._id) == String(req.user.team._id)) {
+    req.userObjectFromParam.getTotalOwed(function(total) {
+      res.json(total);
+    });
+  } else {
+    res.json({});
+  }
 })
 
 router.route('/users/:user_id/paid')
-.get(function(req, res, next) {
-  res.json(req.user.moneyPaid);
+.get(isLoggedIntoTeam, function(req, res, next) {
+  if (String(req.userObjectFromParam.team._id) == String(req.user.team._id)) {
+    res.json(req.userObjectFromParam.moneyPaid);
+  } else {
+    res.json({});
+  }
 })
-.post(function(req, res, next) {
-  var user = req.user;
+.post(isLoggedIn, function(req, res, next) {
+  var user = req.userObjectFromParam;
   var amount = parseFloat(req.param('amount'));
   if (isNaN(amount)) {
     return next(new Error('Error: amount must be a number.'));
   } else {
-    user.moneyPaid += amount;
-    user.update(function(err, user) {
-      if (err) {
-        return next(new Error('Error updating user. Please try again. ' + err));
-      } else {
-        res.json(user.moneyPaid);
+    var totalPaid = user.moneyPaid + amount;
+    User.findOneAndUpdate(
+      {'_id': user._id, 'team': req.user.team._id}, 
+      {'$set':{'moneyPaid': totalPaid}}, 
+      function(err, user) {
+        if (err) {
+          return next(new Error('Error updating user. Please try again. ' + err));
+        } else {
+          res.json(user.moneyPaid);
+        }
       }
-    });
+    );
   }
 })
 
 router.route('/users/:user_id/words/count')
-.get(function(req, res, next) {
-  req.user.getTotalInfractions(function(total) {
-    res.json(total);
-  });
+.get(isLoggedIntoTeam, function(req, res, next) {
+  if (String(req.userObjectFromParam.team._id) == String(req.user.team._id)) {
+    req.userObjectFromParam.getTotalInfractions(function(total) {
+      res.json(total);
+    });
+  } else {
+    res.json({});
+  }
 })
 
 router.route('/users/:user_id/words')
-.get(function(req, res, next) {
-  res.json(req.user.words);
-})
-.post(function(req, res, next) {
-  var user = req.user;
-  var allowDelete = req.param('delete') == 'true';
-  var wordParam = req.param('word');
-  var word = {word: wordParam, count: parseInt(req.param('count'))};
-  if (isNaN(word.count) || (word.count <= 0 && !allowDelete)) {
-    return next(new Error('Error: count must be a positive number.'));
-  } else if (null == wordParam || wordParam.length == 0) {
-    return next(new Error('Error: word submitted was not valid.'));
+.get(isLoggedIntoTeam, function(req, res, next) {
+  if (String(req.userObjectFromParam.team._id) == String(req.user.team._id)) {
+    res.json(req.userObjectFromParam.words);
   } else {
-    updateUserWords(user, word, null, function(err) {
-      if (err) {
-        return next(new Error(err));
-      }
-      res.send(200);
-    });
+    res.json({});
+  }
+})
+.post(isLoggedIntoTeam, function(req, res, next) {
+  if (String(req.userObjectFromParam.team._id) == String(req.user.team._id)) {
+    var user = req.userObjectFromParam;
+    var allowDelete = req.param('delete') == 'true';
+    var wordIdParam = req.param('word');
+    var word = {word: wordIdParam, count: parseInt(req.param('count'))};
+    if (isNaN(word.count) || (word.count <= 0 && !allowDelete)) {
+      return next(new Error('Error: count must be a positive number.'));
+    } else if (null == wordIdParam || wordIdParam.length == 0) {
+      return next(new Error('Error: word submitted was not valid.'));
+    } else {
+      updateUserWords(user, word, null, function(err) {
+        if (err) {
+          return next(new Error(err));
+        }
+        // insert audit record
+        var auditHistory = AuditHistory({
+          'team' : req.user.team._id,
+          'reporter' : req.user._id,
+          'reported' : req.userObjectFromParam._id,
+          'word' : word.word,
+          'count' : word.count 
+        });
+        auditHistory.save(function(err, auditHistory) {
+          if (err) {
+            return next(new Error(err));
+          }
+          res.send(200);
+        });
+      });
+    }
+  } else {
+    res.json({});
   }
 })
 
@@ -242,7 +225,7 @@ function updateUserWords(user, word, userInfo, callback) {
   var count = 0;
   var origCount = user.words.length;
   for (var i=0; i<origCount; i++) {
-    if (user.words[i].word.toUpperCase() === word.word.toUpperCase()) {
+    if (String(user.words[i].word._id) == String(word.word)) {
       user.words[i].count += word.count;
       wordFound = true;
     }
@@ -253,7 +236,7 @@ function updateUserWords(user, word, userInfo, callback) {
       }
       saveUser(user, word, null, function(err) {
         if (err) {
-          callback(err);
+          return callback(err);
         }
         callback(null);
       });
@@ -263,7 +246,7 @@ function updateUserWords(user, word, userInfo, callback) {
     user.words.push(word);
     saveUser(user, word, null, function(err) {
       if (err) {
-        callback(err);
+        return callback(err);
       }
       callback(null);
     });
@@ -272,7 +255,6 @@ function updateUserWords(user, word, userInfo, callback) {
 
 function saveUser(user, word, userInfo, callback) {
   var origId = user._id;
-  console.log(origId);
   user.save(function(err, user) {
     if (err) {
       if (err instanceof mongoose.Error.VersionError) {
@@ -280,7 +262,7 @@ function saveUser(user, word, userInfo, callback) {
         console.log('Refetch required!');
         User.find({_id: origId}, function(err, users) {
           if (err) {
-            callback(err);
+            return callback(err);
           } else if (users.length > 0) {
             if (word) {
               updateUserWords(users[0], word, null, callback);
@@ -302,29 +284,57 @@ function saveUser(user, word, userInfo, callback) {
   });
 }
 
+router.route('/users/:user_id/join/:team_id')
+.post(isLoggedIn, function(req, res, next) {
+  var user_id = req.userObjectFromParam._id;
+  var team_id = req.team._id;
+  setTeamOnUser(user_id, team_id, function(err, user) {
+    if (err) {
+      console.log('Error ' + err);
+      return next(new Error('Error updating user. Please try again. ' + err));
+    } else {
+      console.log('success');
+      res.send(200);
+    }
+  });
+})
+
+function setTeamOnUser(user_id, team_id, callback) {
+  User.findOneAndUpdate(
+    {'_id': user_id}, 
+    {'$set':{'team': team_id}}, 
+    function(err, user) {
+      return callback(err, user);
+    }
+  );  
+}
+
 router.route('/users/:user_id')
-.get(function(req, res, next) {
-  res.json(req.user);
+.get(isLoggedIn, function(req, res, next) {
+  if (String(req.userObjectFromParam.team._id) == String(req.user.team._id)) {
+    res.json(req.userObjectFromParam);
+  } else {
+    res.json({});
+  }
 })
 
 router.route('/users')
-.get(function(req, res, next) {
-  User.find(function(err, users) {
-    if (err) { return next(new Error('Error retireving all users. ' + err)); }
-    res.json(users);
-  });
+.get(isLoggedIntoTeam, function(req, res, next) {
+  User.find({'team': req.user.team._id})
+    .populate('words.word')
+    .exec(function(err, users) {
+      if (err) { return next(new Error('Error retireving all users. ' + err)); }
+      res.json(users);
+    });
 })
-.post(function(req, res, next) {
-  var userId = req.param('id');
+.post(isLoggedIn, function(req, res, next) {
+  var userId = req.param('id') == null ? null : mongoose.Types.ObjectId.createFromHexString(req.param('id').toString());
   var userInfo = {wordCost : req.param('wordCost'), userName : req.param('name')};
-  console.log(userInfo);
   User.find({_id: userId}, function(err, users) {
     if (err) { return next(new Error('Error find user with given id')); }
     var user;
     if (users.length == 0) {
-      user = new User({
-          _id: userId
-      });
+      user = new User();
     } else {
       user = users[0];
     }
@@ -338,15 +348,14 @@ router.route('/users')
 })
 
 function updateUserInfo(user, word, userInfo, callback) {
-  console.log(JSON.stringify(userInfo));
   setUserName(user, userInfo.userName, function(user) {
     setWordCost(user, userInfo.wordCost, function(err, user) {
       if (err) {
-        callback(err);
+        return callback(err);
       }
       saveUser(user, null, userInfo, function(err) {
         if (err) {
-          callback(err);
+          return callback(err);
         }
         callback(null);
       });
@@ -371,60 +380,58 @@ function setUserName(user, name, callback) {
 }
 
 router.route('/words/count')
-.get(function(req, res, next) {
-  Word.getTotalCount(function(err, result) {
+.get(isLoggedIntoTeam, function(req, res, next) {
+  Word.getTotalCount(req.user.team._id, function(err, result) {
     if (err) { return next(new Error('Error when attempting to get total count for all words. ' + err)) }
     res.json(result);
   })
 })
 
-router.param('word', function(req, res, next, word) {
-  Word.find({word: word}, function(err, words) {
-    if (words.length > 0) {
-      req.word = words[0];
-      next();
-    } else {
-      return next(new Error('No matching Word found.'));
-    }
-  });
-});
-
-router.route('/words/:word')
-.get(function(req, res, next) {
-  res.json(req.word);
+router.route('/words/:word_id')
+.get(isLoggedIntoTeam, function(req, res, next) {
+  if (String(req.word.team._id) == String(req.user.team._id)) {
+    res.json(req.word);
+  } else {
+    res.json({});
+  }
 })
 
-router.route('/words/:word/count')
-.get(function(req, res, next) {
-  req.word.getTotalCount(function(err, total) {
-    if (err) { return next(new Error('Error getting the total count of word usage. ' + err)); }
-    res.json(total);
-  });
+router.route('/words/:word_id/count')
+.get(isLoggedIntoTeam, function(req, res, next) {
+  if (String(req.word.team._id) == String(req.user.team._id)) {
+    req.word.getTotalCount(function(err, total) {
+      if (err) { return next(new Error('Error getting the total count of word usage. ' + err)); }
+      res.json(total);
+    });
+  } else {
+    res.json({});
+  }
 })
 
 router.route('/words')
-.get(function(req, res, next) {
-  Word.find(function(err, words) {
+.get(isLoggedIntoTeam, function(req, res, next) {
+  Word.find({'team': req.user.team._id}, function(err, words) {
     if (err) { return next(new Error('Error retrieving all words. ' + err)); }
     res.json(words);
   })
 })
-.post(function(req, res, next) {
+.post(isLoggedIntoTeam, function(req, res, next) {
   var wordText = req.param('word');
   var category = req.param('category');
-  var isActiveOption = req.param('active');
-  Word.find({word: wordText}, function (err, words) {
+  var active = req.param('active');
+  Word.find({team: req.user.team._id, word: wordText}, function (err, words) {
     if (err) {
       return next(new Error('Error attempting to find existing word.'));
     } else {
       var word = words.length > 0 ? words[0] : new Word({
         word: wordText,
+        team: req.user.team._id
       });
       if (null != category) {
         word.category = category;
       }
-      if (null != isActiveOption) {
-        word.isActiveOption = isActiveOption;
+      if (null != active) {
+        word.active = active;
       }
       word.save(function(err, word) {
         if (err) { return next(new Error('Error saving new word. ' + err)); }
@@ -434,36 +441,157 @@ router.route('/words')
   });
 })
 
+router.route('/team')
+.get(isLoggedIntoTeam, function(req, res, next) {
+  Team.find({'_id': req.user.team._id})
+   .exec(function(err, teams) {
+    if (err) { return next(new Error('Error retrieving all teams. ' + err)); }
+      res.json(teams);
+    });
+})
+.post(isLoggedIn, function(req, res, next) {
+  var name = req.param('name');
+  var team = new Team({
+    name: name
+  })
+  team.save(function(err, team) {
+    if (err) { return next(new Error('Error saving new team. ' + err)); }
+    res.send(200);
+  })
+})
+
 function renderPage(pageToRender, req, res) {
   var userList;
   var words;
-  var users = User.find( {$query: {}, $orderby : {name: 1} }, function(err, users) {
-    if (err) {
-      res.send(500);
-    } else {
-      userList = users;
-      Word.find( {$query: {'isActiveOption': {$ne: false}}, $orderby: { word: 1 } }, function(err, words) {
-        if (err) {
-          res.send(500);
-        } else {
-          res.render(pageToRender, {'users': userList, 'words': words});
-        }
-      });
-    }
-  });
+  var teamId = req.user.team._id;
+  var users = User.find({'team': teamId})
+    .sort({'name': 1})
+    .exec(function(err, users) {
+      if (err) {
+        res.send(500);
+      } else {
+        userList = users;
+        Word.find({'$and': [{'team': teamId}, {'active': {$ne: false}}]})
+          .sort({'word': 1 })
+          .exec(function(err, words) {
+            if (err) {
+              res.send(500);
+            } else {
+              res.render(pageToRender, {'users': userList, 'words': words});
+            }
+          });
+      }
+    });
 }
 
-app.get('/', function(req, res) {
+function renderSignupPage(pageToRender, req, res) {
+  Team.find({'active': true})
+    .sort({'name': 1})
+    .exec(function(err, teams) {
+      if (err) {
+        res.send(500);
+      } else {
+          res.render(pageToRender, {'teams': teams});
+      }
+    });
+}
+
+function renderHistoryPage(pageToRender, req, res) {
+  AuditHistory.find({'team': req.user.team._id})
+    .populate('team')
+    .populate('reported')
+    .populate('reporter')
+    .populate('word')
+    .limit(100)
+    .sort({'timestamp': -1})
+    .exec(function(err, auditHistoryDocs) {
+      if (err) {
+        res.send(500);
+      } else {
+          auditHistoryRows = []
+          for (var i=0; i<auditHistoryDocs.length; i++) {
+            var doc = auditHistoryDocs[i];
+            var timeSuffix = doc.count > 1 ? 's' : '';
+            var historyString = doc.reporter.name + ' reported ' + doc.reported.name + ' : ' + doc.word.word + ' ' + doc.count + ' time' + timeSuffix;
+            auditHistoryRows.push({'report' : historyString, 'timestamp' : doc.timestamp});
+          }
+          res.render(pageToRender, {'auditHistoryRows': auditHistoryRows});
+      }
+    });
+}
+
+app.get('/', isLoggedIntoTeam, function(req, res) {
   renderPage('indexOld', req, res);
 });
 
-app.get('/new', function(req, res) {
+app.get('/bulk', isLoggedIntoTeam, function(req, res) {
   renderPage('index', req, res);
 });
 
-app.get('/charts', function(req, res) {
+app.get('/charts', isLoggedIntoTeam, function(req, res) {
   res.render('charts');
 });
+
+app.get('/history', isLoggedIntoTeam, function(req, res) {
+  renderHistoryPage('history', req, res);
+})
+
+app.get('/login', function(req, res) {
+  res.render('login');
+})
+
+app.get('/signup', function(req, res) {
+  // TODO ADD A NEW TEAM OPTION FOR BRAND NEW USERS
+  renderSignupPage('signup', req, res);
+})
+
+app.get(
+  '/auth/google',
+  passport.authenticate(
+    'google', 
+    { scope: [
+        'https://www.googleapis.com/auth/plus.login',
+        'https://www.googleapis.com/auth/plus.profile.emails.read'
+      ] 
+    }
+  )
+);
+
+app.get(
+  '/auth/google/callback', 
+  passport.authenticate('google', { failureRedirect: '/login' }),
+  function(req, res) {
+    // logged in
+    if (null == req.user.team && null == req.session.team) {
+      // without a team - redirect to signup page to pick a team
+      res.redirect('/signup');
+    } else if ((null == req.user.team && null != req.session.team) || (null != req.session.team && String(req.user.team) != String(req.session.team._id))) {
+      // team set on context, so set team on user
+      setTeamOnUser(req.user._id, req.session.team._id, function(err, user) {
+        res.redirect('/');
+      });
+    } else {
+      // logged in, let's proceed
+      res.redirect('/');      
+    }
+  }
+);
+
+// route middleware to make sure a user is logged in
+function isLoggedIn(req, res, next) {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.redirect('/login');
+}
+
+// route middleware to make sure a user is logged in and a member of a team
+function isLoggedIntoTeam(req, res, next) {
+  if (req.isAuthenticated() && null != req.user.team) {
+    return next();
+  }
+  res.redirect('/login');
+}
 
 mongoose.connect(mongoUri);
 var db = mongoose.connection;

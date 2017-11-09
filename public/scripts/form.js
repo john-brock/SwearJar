@@ -20,6 +20,18 @@ $(document).ready(function(){
 		submitForm();
 	});
 
+	$('#decrement').click(function() { 
+		adjustCount(-1);
+	});
+
+	$('#increment').click(function() { 
+		adjustCount(1);
+	});
+
+	$('#signup').click(function() { 
+		signup();
+	});
+
 	$('button[class$="user"]').click(function() {
 		var userId = this.getAttribute('data-user');
 		var idPosition = ids.indexOf(userId);
@@ -45,6 +57,7 @@ $(document).ready(function(){
 
 	adjustDefaultSelectValue('#userInput');
 	adjustDefaultSelectValue('#wordInput');
+	adjustDefaultSelectValue('#teamInput');
 });
 
 function toggleIfNotHidden(element) {
@@ -128,6 +141,27 @@ function submitForm() {
 	})
 }
 
+function adjustCount(adjustment) {
+	var count = $('#countInput').val();
+	$('#countInput').val(+count + adjustment);
+}
+
+function signup() {
+	var teamId = $('#teamInput').val();
+	$.ajax({
+		type: 'POST',
+		url: '/users/signup/' + teamId,
+		data: {},
+		success: function(msg) {
+			window.location = "/";
+		},
+		error: function() {
+			// should handle error better with user message
+			window.location = "/signup";
+		}
+	});
+}
+
 function submitBulk() {
 	var userCount = 0;
 	var successCount = 0;
@@ -186,10 +220,13 @@ function error() {
 
 function adjustDefaultSelectValue(selectId) {
 	var selectInput = $(selectId);
-	if (selectInput.prop('options').length == 2) {
-		// length of 2 means there is only 1 real option
-		selectInput.prop('selectedIndex', 1);
-	} else {
-		selectInput.prop('selectedIndex', 0);		
+	var selectOptions = selectInput.prop('options');
+	if (null != selectOptions) {
+		if (selectInput.prop('options').length == 2) {
+			// length of 2 means there is only 1 real option
+			selectInput.prop('selectedIndex', 1);
+		} else {
+			selectInput.prop('selectedIndex', 0);		
+		}
 	}
 }

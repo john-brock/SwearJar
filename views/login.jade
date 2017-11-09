@@ -1,0 +1,9 @@
+extends layout
+
+block content
+	div.container
+		h1 Welcome
+		form#loginForm(role='form')
+			a#login(type='submit', href='/auth/google', class='btn btn-default btn-lg btn-block') Log in with Google
+		div.container
+			br

@@ -1,0 +1,18 @@
+extends layout
+
+block content
+	div.container
+		h1 Recent history
+		div.container
+			table.table
+				theah
+					tr
+						th Report
+						th Time
+				tbody
+					each auditHistoryRow in auditHistoryRows
+						tr
+							td
+								p= auditHistoryRow.report
+							td
+								p= auditHistoryRow.timestamp

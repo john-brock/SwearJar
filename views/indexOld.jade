@@ -24,15 +24,21 @@ block content
 				select#userInput(type='text', class='form-control input-lg')
 					option(selected disabled) -- Who --
 					each user in users
-						option
+						option(value=user._id)
 							| #{user.name}
 			div(class='form-group')
 				select#wordInput(type='text', class='form-control input-lg')
 					option(selected disabled) -- Word --
 					each word in words
-						option
+						option(value=word._id)
 							| #{word.word}
 			div(class='form-group')
 				label(for='countInput') Number of Infractions
-				input#countInput(type='number', class='form-control input-lg' value='1')
+				div.container-fluid
+					div(class='col-xs-4')
+						a#decrement(type='button', class='btn btn-default btn-lg btn-block glyphicon glyphicon-minus') 
+					div(class='col-xs-4')
+						input#countInput(type='number', class='form-control input-lg num-center' value='1')
+					div(class='col-xs-4')
+						a#increment(type='button', class='btn btn-default btn-lg btn-block glyphicon glyphicon-plus') 
 			a#submitOld(type='submit', class='btn btn-success btn-lg btn-block') Save

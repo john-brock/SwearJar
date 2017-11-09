@@ -39,6 +39,14 @@ SwearJar is a NodeJS app that tracks the use of "forbidden" words and the associ
   <br/>`GET /users/:userId/words`
 - Retrieve the number of infractions for a specific user
   <br/>`GET /users/:userId/words/count`
+- Sign up for a specific team
+  <br/>`POST /users/signup/:team_id`
+- Join a team
+  <br/>`POST /users/:user_id/join/:team_id`
+- Retrieve information about the user's current team
+  <br/>`GET /team`
+- Create a new team
+  <br/>`POST /team` with data `{ name: amountPaid }`
 
 *Forbidden Words*
 - List words
@@ -55,5 +63,11 @@ SwearJar is a NodeJS app that tracks the use of "forbidden" words and the associ
 **UI**
 - Report new infraction (word usage)
   `/`
+- Report new infractions using the bulk UI
+  `/bulk`
 - View analytics for infractions
   `/charts`
+- Log of infraction reports
+  `/history`
+- Sign up to be on a team
+  `/signup`
