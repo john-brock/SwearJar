@@ -28,7 +28,7 @@ $(document).ready(function(){
 		adjustCount(1);
 	});
 
-	$('#signup').click(function() { 
+	$('#signup').click(function() {
 		signup();
 	});
 
@@ -147,11 +147,17 @@ function adjustCount(adjustment) {
 }
 
 function signup() {
-	var teamId = $('#teamInput').val();
+	var team = $('#team').val();
+	if (!verifyTeamName(team)) {
+		$('#badTeamName').show();
+		return;
+	}
 	$.ajax({
 		type: 'POST',
-		url: '/users/signup/' + teamId,
-		data: {},
+		url: '/users/signup',
+		data: {
+			'team' : team
+		},
 		success: function(msg) {
 			window.location = "/";
 		},
@@ -160,6 +166,13 @@ function signup() {
 			window.location = "/signup";
 		}
 	});
+}
+
+function verifyTeamName(name) {
+	var pattern = new RegExp("^[a-zA-Z0-9_-]*$");
+	var matches = pattern.test(name);
+	console.log(matches)
+	return matches;
 }
 
 function submitBulk() {

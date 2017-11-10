@@ -3,11 +3,10 @@ extends layout
 block content
 	div.container
 		h1 Sign up
+		div#badTeamName(class='alert alert-danger', role='alert', style='display:none')
+			| Team name cannot contain spaces or special characters ('-' and '_' are allowed)
+
 		form#form(role='form')
 			div(class='form-group')
-				select#teamInput(type='text', class='form-control input-lg')
-					option(selected disabled) -- Team --
-					each team in teams
-						option(value=team._id)
-							| #{team.name}
+				input#team(type='text', class='form-control input-lg')
 			a#signup(type='submit', class='btn btn-primary btn-lg btn-block') Join Team

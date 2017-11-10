@@ -23,7 +23,7 @@ var wordSchema = mongoose.Schema({
 });
 
 var teamSchema = mongoose.Schema({
-  name: {type: String, required: true, unique: true, trim: true},
+  name: {type: String, match: /^[a-zA-Z0-9_-]*$/, required: true, unique: true, trim: true},
   active: {type: Boolean, default: true}
 });
 
@@ -171,6 +171,22 @@ function addCountToMap(word, callback) {
 // *******************************
 // TEAM SCHEMA METHODS
 // *******************************
+teamSchema.statics.findOrCreate = function(teamName, callback) {
+  Team.find({'name' : teamName}, function(err, teams) {
+    if (err || null == teams) { return callback(err, null); }
+    if (teams.length > 0) {
+      callback(null, teams[0]);        
+    } else {
+      var team = new Team();
+      team.name = teamName;
+      team.save(function(err, savedTeam) {
+        if (err || null == savedTeam) { return callback(err, null); }
+        return callback(null, savedTeam);
+      });
+    }
+  });
+}
+
 
 // *******************************
 // Export Object Models

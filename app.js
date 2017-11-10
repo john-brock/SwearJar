@@ -35,47 +35,59 @@ var Word = models.Word;
 var Team = models.Team;
 var AuditHistory = models.AuditHistory;
 
-router.param('user_id', function(req, res, next, id) {
-  userId = mongoose.Types.ObjectId.createFromHexString(id.toString())
-  User.find({_id: userId})
-    .populate('team')
-    .populate('words.word')
-    .exec(function(err, users) {
-      if (null != users && users.length > 0) {
-        req.userObjectFromParam = users[0];
-        next();
-      } else {
-        return next(new Error('User not found!'));
-      }
-    });
+router.param('user_id', function(req, res, next, user_id) {
+  findUser(user_id, function(err, users) {
+    if (null != users && users.length > 0) {
+      req.userObjectFromParam = users[0];
+      next();
+    } else {
+      return next(new Error('User not found!'));
+    }
+  });
 });
 
 router.param('word_id', function(req, res, next, word_id) {
-  wordId = mongoose.Types.ObjectId.createFromHexString(word_id.toString())
-  Word.find({_id: wordId})
-    .populate('team')
-    .exec(function(err, words) {
-      if (words.length > 0) {
-        req.word = words[0];
-        next();
-      } else {
-        return next(new Error('No matching Word found.'));
-      }
-    });
+  findWord(word_id, function(err, words) {
+    if (words.length > 0) {
+      req.word = words[0];
+      next();
+    } else {
+      return next(new Error('No matching Word found.'));
+    }
+  });
 });
 
 router.param('team_id', function(req, res, next, team_id) {
-  teamObjectId = mongoose.Types.ObjectId.createFromHexString(team_id.toString())
-  Team.find({_id: teamObjectId})
-    .exec(function(err, teams) {
-      if (!err && teams.length > 0) {
-        req.team = teams[0];
-        next();
-      } else {
-        return next(new Error('No matching Team found. ' + err));
-      }
-    });
+  findTeam(team_id, function(err, teams) {
+    if (!err && teams.length > 0) {
+      req.team = teams[0];
+      next();
+    } else {
+      return next(new Error('No matching Team found. ' + err));
+    }
+  });
 });
+
+function findUser(user_id, callback) {
+  var userId = mongoose.Types.ObjectId.createFromHexString(user_id.toString())
+  User.find({_id: userId})
+    .populate('team')
+    .populate('words.word')
+    .exec(callback);  
+}
+
+function findWord(word_id, callback) {
+  var wordId = mongoose.Types.ObjectId.createFromHexString(word_id.toString())
+  Word.find({_id: wordId})
+    .populate('team')
+    .exec(callback);
+}
+
+function findTeam(team_id, callback) {
+  var teamObjectId = mongoose.Types.ObjectId.createFromHexString(team_id.toString())
+  Team.find({_id: teamObjectId})
+    .exec(callback);
+}
 
 router.route('/users/summary')
 .get(isLoggedIntoTeam, function(req, res, next) {
@@ -123,6 +135,26 @@ router.route('/users/signup/:team_id')
       res.send(result); 
     }
   });
+})
+
+router.route('/users/signup')
+.post(isLoggedIn, function(req, res, next) {
+  var team = req.param('team');
+  Team.findOrCreate(team, function(err, foundTeam) {
+    if (err) { 
+      console.log(err);
+      res.send(500);
+    } else {
+      setTeamOnUser(req.user._id, foundTeam._id, function(err, result) {
+        if (err) { 
+          console.log(err);
+          res.send(500);
+        } else { 
+          res.send(result); 
+        }
+      });
+    }
+  })
 })
 
 router.route('/users/:user_id/owes')
@@ -537,7 +569,9 @@ app.get('/history', isLoggedIntoTeam, function(req, res) {
 })
 
 app.get('/login', function(req, res) {
-  res.render('login');
+  findTeamAndSetOnReqSession(req, function() {
+    res.render('login');
+  });
 })
 
 app.get('/signup', function(req, res) {
@@ -546,7 +580,10 @@ app.get('/signup', function(req, res) {
 })
 
 app.get(
-  '/auth/google',
+  '/auth/google', 
+  function(req, res, next) {
+    findTeamAndSetOnReqSession(req, next);
+  },
   passport.authenticate(
     'google', 
     { scope: [
@@ -556,6 +593,19 @@ app.get(
     }
   )
 );
+
+function findTeamAndSetOnReqSession(req, callback) {
+  if (null != req.query && null != req.query.team) {
+    findTeam(req.query.team, function(err, teams) {
+      if (!err && teams.length > 0) {
+        req.session.team = teams[0];
+      }
+      callback();
+    });
+  } else {
+    callback();
+  }
+}
 
 app.get(
   '/auth/google/callback', 
@@ -568,6 +618,7 @@ app.get(
     } else if ((null == req.user.team && null != req.session.team) || (null != req.session.team && String(req.user.team) != String(req.session.team._id))) {
       // team set on context, so set team on user
       setTeamOnUser(req.user._id, req.session.team._id, function(err, user) {
+        if (err) { return res.redirect('/signup'); }
         res.redirect('/');
       });
     } else {
